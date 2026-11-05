@@ -1,0 +1,23 @@
+{
+  "name": "@campusmesh/identity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cryptographic identity lifecycle, BIP-39 recovery and QR exchange for CampusMesh",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@campusmesh/shared-types": "workspace:*",
+    "@campusmesh/crypto": "workspace:*",
+    "@campusmesh/storage": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

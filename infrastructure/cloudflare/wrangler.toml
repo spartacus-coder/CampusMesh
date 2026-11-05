@@ -1,0 +1,14 @@
+name = "campusmesh-signaling"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+[durable_objects]
+bindings = [
+  { name = "ROOM_COORDINATOR", class_name = "RoomCoordinatorDO" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomCoordinatorDO"]
+

@@ -1,0 +1,32 @@
+{
+  "name": "@campusmesh/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CampusMesh Responsive Web & PWA Application",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@campusmesh/shared-types": "workspace:*",
+    "@campusmesh/crypto": "workspace:*",
+    "@campusmesh/storage": "workspace:*",
+    "@campusmesh/protocol": "workspace:*",
+    "@campusmesh/transport": "workspace:*",
+    "@campusmesh/identity": "workspace:*",
+    "@campusmesh/contacts": "workspace:*",
+    "@campusmesh/messaging": "workspace:*",
+    "@campusmesh/groups": "workspace:*",
+    "@campusmesh/file-transfer": "workspace:*",
+    "@campusmesh/notifications": "workspace:*",
+    "@campusmesh/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

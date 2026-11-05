@@ -1,0 +1,25 @@
+{
+  "name": "@campusmesh/messaging",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ratchet engine, 6-state delivery tracking and conversation manager for CampusMesh",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@campusmesh/shared-types": "workspace:*",
+    "@campusmesh/crypto": "workspace:*",
+    "@campusmesh/storage": "workspace:*",
+    "@campusmesh/protocol": "workspace:*",
+    "@campusmesh/transport": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

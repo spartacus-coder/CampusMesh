@@ -1,0 +1,18 @@
+{
+  "name": "@campusmesh/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CampusMesh Tauri 2 Desktop Container for Windows NSIS",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@campusmesh/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
