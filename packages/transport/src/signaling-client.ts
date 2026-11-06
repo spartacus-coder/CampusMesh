@@ -71,12 +71,16 @@ export class SignalingClient {
     this.isExplicitlyClosed = false;
     this.setState(SignalingState.CONNECTING);
 
+    const defaultSignaling =
+      "wss://campusmesh-signaling.chandragupt989.workers.dev";
     const baseUrl =
       customUrl ||
       this.options.serverUrl ||
-      (typeof window !== "undefined" && window.location
+      (typeof window !== "undefined" &&
+      window.location &&
+      window.location.hostname.includes("workers.dev")
         ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`
-        : "wss://signaling.campusmesh.workers.dev");
+        : defaultSignaling);
 
     const cleanBase = baseUrl.replace(/\/+$/, "");
     const wsUrl = `${cleanBase}/api/room/${encodeURIComponent(roomId)}/ws?fp=${encodeURIComponent(
