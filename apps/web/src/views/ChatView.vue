@@ -14,6 +14,9 @@ import {
   Clock,
   ShieldCheck,
   Radio,
+  FileText,
+  Download,
+  Image as ImageIcon,
 } from "lucide-vue-next";
 import {
   Avatar,
@@ -26,13 +29,19 @@ import {
 import { DeliveryState, MessageType } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
+import {
+  useFileTransferStore,
+  type StoredAttachmentPayload,
+} from "../stores/files";
 
 const chatStore = useChatStore();
 const networkStore = useNetworkStore();
+const fileTransferStore = useFileTransferStore();
 
 const inputText = ref("");
 const isDetailsOpen = ref(false);
 const showManualSignalModal = ref(false);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const activeConversation = computed(() => {
   return chatStore.conversations.find(
@@ -66,6 +75,46 @@ function handleSendMessage() {
   };
   chatStore.appendMessage(newMsg);
   inputText.value = "";
+}
+
+function parseAttachmentPayload(
+  content: string,
+): StoredAttachmentPayload | null {
+  try {
+    const parsed = JSON.parse(content) as StoredAttachmentPayload;
+    if (parsed && parsed.fileId && parsed.fileName) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function handleFileSelected(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  if (!file || !activeConversation.value) return;
+
+  try {
+    await fileTransferStore.sendFile(
+      file,
+      activeConversation.value.id,
+      activeConversation.value.peerFingerprint,
+    );
+  } catch (err: unknown) {
+    alert(err instanceof Error ? err.message : String(err));
+  } finally {
+    if (fileInputRef.value) {
+      fileInputRef.value.value = "";
+    }
+  }
 }
 </script>
 
@@ -188,7 +237,91 @@ function handleSendMessage() {
                   : 'bg-surface text-textPrimary border border-borderSubtle rounded-bl-xs'
               "
             >
-              <p class="break-words leading-relaxed">{{ msg.content }}</p>
+              <!-- Text or File Attachment Content -->
+              <div v-if="msg.contentType === MessageType.ATTACHMENT">
+                <div
+                  v-if="parseAttachmentPayload(msg.content)"
+                  class="flex flex-col gap-2 min-w-[220px]"
+                >
+                  <div
+                    class="flex items-center gap-3 p-2.5 rounded-xl bg-black/10 dark:bg-white/10"
+                  >
+                    <div
+                      class="h-8 w-8 rounded-lg bg-black/10 dark:bg-white/10 flex items-center justify-center shrink-0"
+                    >
+                      <ImageIcon
+                        v-if="
+                          parseAttachmentPayload(
+                            msg.content,
+                          )!.mimeType.startsWith('image/')
+                        "
+                        class="h-4 w-4"
+                      />
+                      <FileText v-else class="h-4 w-4" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-xs font-bold truncate">
+                        {{ parseAttachmentPayload(msg.content)!.fileName }}
+                      </p>
+                      <p class="text-[10px] opacity-75">
+                        {{
+                          formatFileSize(
+                            parseAttachmentPayload(msg.content)!.fileSize,
+                          )
+                        }}
+                      </p>
+                    </div>
+                    <Button
+                      v-if="
+                        fileTransferStore.completedFiles[
+                          parseAttachmentPayload(msg.content)!.fileId
+                        ]
+                      "
+                      variant="ghost"
+                      size="iconSm"
+                      class="h-7 w-7 text-current hover:bg-black/10"
+                      title="Download File"
+                      @click="
+                        fileTransferStore.downloadFile(
+                          parseAttachmentPayload(msg.content)!.fileId,
+                        )
+                      "
+                    >
+                      <Download class="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <!-- Progress Bar if Transferring -->
+                  <div
+                    v-if="
+                      fileTransferStore.transfers[
+                        parseAttachmentPayload(msg.content)!.fileId
+                      ] &&
+                      fileTransferStore.transfers[
+                        parseAttachmentPayload(msg.content)!.fileId
+                      ]!.status !== 'COMPLETED'
+                    "
+                    class="w-full bg-black/20 rounded-full h-1.5 overflow-hidden"
+                  >
+                    <div
+                      class="bg-current h-full transition-all duration-200"
+                      :style="{
+                        width: `${
+                          fileTransferStore.transfers[
+                            parseAttachmentPayload(msg.content)!.fileId
+                          ]!.percentage
+                        }%`,
+                      }"
+                    ></div>
+                  </div>
+                </div>
+                <p v-else class="break-words leading-relaxed">
+                  {{ msg.content }}
+                </p>
+              </div>
+              <p v-else class="break-words leading-relaxed">
+                {{ msg.content }}
+              </p>
               <div
                 class="flex items-center justify-end gap-1 text-[10px] mt-1 select-none"
                 :class="msg.isOutgoing ? 'text-white/80' : 'text-textMuted'"
@@ -237,12 +370,20 @@ function handleSendMessage() {
           class="flex items-center gap-2 max-w-4xl mx-auto"
           @submit.prevent="handleSendMessage"
         >
+          <input
+            ref="fileInputRef"
+            type="file"
+            class="hidden"
+            @change="handleFileSelected"
+          />
+
           <Button
             type="button"
             variant="ghost"
             size="iconSm"
             title="Attach File (Direct P2P)"
-            class="text-textSecondary"
+            class="text-textSecondary hover:text-primary"
+            @click="fileInputRef?.click()"
           >
             <Paperclip class="h-4 w-4" />
           </Button>

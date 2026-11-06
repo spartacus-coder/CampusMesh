@@ -5,6 +5,7 @@ import { useNetworkStore } from "./network";
 import { useChatStore } from "./chat";
 import { useIdentityStore } from "./identity";
 import { useContactsStore } from "./contacts";
+import { useFileTransferStore } from "./files";
 import { InMemoryStorageAdapter } from "@campusmesh/storage";
 import {
   SignalingState,
@@ -172,5 +173,51 @@ describe("Web Stores Suite", () => {
     // Delete contact
     await contactsStore.deleteContact("fp-peer-alice-12345");
     expect(contactsStore.contacts).toHaveLength(0);
+  });
+
+  it("file transfer store should orchestrate chunked attachment sending and progress tracking", async () => {
+    const fileStore = useFileTransferStore();
+    const chatStore = useChatStore();
+
+    // Mock File object
+    const fileContent = new Uint8Array(20000).fill(0x55);
+    const mockFile = {
+      name: "report.pdf",
+      size: 20000,
+      type: "application/pdf",
+      arrayBuffer: () => Promise.resolve(fileContent.buffer),
+    } as unknown as File;
+
+    const metadata = await fileStore.sendFile(
+      mockFile,
+      "conv_alice",
+      "fp-peer-alice",
+    );
+
+    expect(metadata.name).toBe("report.pdf");
+    expect(metadata.size).toBe(20000);
+    expect(fileStore.completedFiles[metadata.id]).toBeDefined();
+
+    // Verify chatStore recorded attachment message
+    const lastMsg =
+      chatStore.activeMessages[chatStore.activeMessages.length - 1];
+    expect(lastMsg?.contentType).toBe(MessageType.ATTACHMENT);
+    expect(lastMsg?.content).toContain("report.pdf");
+
+    // Verify progress tracking
+    expect(fileStore.transfers[metadata.id]).toBeDefined();
+    expect(fileStore.transfers[metadata.id]?.status).toBe("COMPLETED");
+
+    // Reject file > 50 MB
+    const oversizedFile = {
+      name: "massive.dat",
+      size: 60 * 1024 * 1024,
+      type: "application/octet-stream",
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    } as unknown as File;
+
+    await expect(
+      fileStore.sendFile(oversizedFile, "conv_alice"),
+    ).rejects.toThrow(/maximum direct P2P size limit/);
   });
 });
