@@ -33,6 +33,37 @@ export class RoomCoordinator {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+
+    // Internal Inter-DO message delivery endpoint
+    if (url.pathname === "/internal/deliver") {
+      try {
+        const msg = (await request.json()) as SignalingRoomMessage;
+        if (!msg.targetFingerprint) {
+          return new Response("Missing targetFingerprint", { status: 400 });
+        }
+        const targetSocket = this.sockets.get(msg.targetFingerprint);
+        if (targetSocket && targetSocket.readyState === 1) {
+          targetSocket.send(JSON.stringify(msg));
+          return new Response(JSON.stringify({ status: "delivered_live" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else {
+          this.depositMailbox(
+            msg.senderFingerprint,
+            msg.targetFingerprint,
+            msg.data,
+          );
+          return new Response(JSON.stringify({ status: "deposited_mailbox" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      } catch (err) {
+        return new Response(String(err), { status: 500 });
+      }
+    }
+
     const upgradeHeader = request.headers.get("Upgrade");
 
     if (!upgradeHeader || upgradeHeader.toLowerCase() !== "websocket") {
@@ -165,7 +196,7 @@ export class RoomCoordinator {
           }),
         );
       } else {
-        this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+        this.forwardOrDeposit(senderFp, msg);
       }
       return;
     }
@@ -199,7 +230,7 @@ export class RoomCoordinator {
       return;
     }
 
-    // Direct relay to target peer
+    // Direct relay or Inter-DO forwarding to target peer
     if (msg.targetFingerprint) {
       const targetSocket = this.sockets.get(msg.targetFingerprint);
       if (targetSocket && targetSocket.readyState === 1) {
@@ -209,6 +240,8 @@ export class RoomCoordinator {
             senderFingerprint: senderFp,
           }),
         );
+      } else {
+        this.forwardOrDeposit(senderFp, msg);
       }
       return;
     }
@@ -240,6 +273,36 @@ export class RoomCoordinator {
         );
       }
     }
+  }
+
+  private async forwardOrDeposit(senderFp: string, msg: SignalingRoomMessage) {
+    if (!msg.targetFingerprint) return;
+
+    const coordinatorBinding = (this.env as Record<string, unknown>).ROOM_COORDINATOR as
+      | { idFromName(name: string): unknown; get(id: unknown): { fetch(req: Request): Promise<Response> } }
+      | undefined;
+
+    if (coordinatorBinding) {
+      try {
+        const targetId = coordinatorBinding.idFromName(`user_${msg.targetFingerprint}`);
+        const targetStub = coordinatorBinding.get(targetId);
+        await targetStub.fetch(
+          new Request("https://internal/deliver", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...msg,
+              senderFingerprint: senderFp,
+            }),
+          }),
+        );
+        return;
+      } catch {
+        // Fallback to local mailbox if inter-DO delivery throws
+      }
+    }
+
+    this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
   }
 
   private depositMailbox(senderFp: string, targetFp: string, data: unknown) {

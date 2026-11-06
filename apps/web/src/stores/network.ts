@@ -193,6 +193,17 @@ export const useNetworkStore = defineStore("network", () => {
     }
   }
 
+  async function connectUserSignaling(localFingerprint: string) {
+    const userRoom = `user_${localFingerprint}`;
+    if (
+      activeRoomId.value === userRoom &&
+      signalingState.value === SignalingState.CONNECTED
+    ) {
+      return;
+    }
+    await connectSignaling(userRoom, localFingerprint);
+  }
+
   async function connectSignaling(roomId: string, localFingerprint: string) {
     initTransport();
     activeRoomId.value = roomId;
@@ -341,6 +352,7 @@ export const useNetworkStore = defineStore("network", () => {
     setDirectLan,
     dismissQuotaAlert,
     initNetworkListeners,
+    connectUserSignaling,
     connectSignaling,
     disconnectSignaling,
     connectToPeer,

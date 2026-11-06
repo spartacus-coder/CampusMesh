@@ -105,13 +105,39 @@ export const useChatStore = defineStore("chat", () => {
     }
     const list = messagesMap.value[msg.conversationId];
     if (list) {
+      if (list.some((m) => m.id === msg.id)) {
+        return;
+      }
       list.push(msg);
     }
 
-    const conv = conversations.value.find((c) => c.id === msg.conversationId);
-    if (conv) {
+    let conv = conversations.value.find(
+      (c) =>
+        c.id === msg.conversationId ||
+        (!msg.isOutgoing &&
+          msg.senderFingerprint &&
+          c.peerFingerprint === msg.senderFingerprint),
+    );
+
+    if (!conv && !msg.isOutgoing && msg.senderFingerprint) {
+      conv = {
+        id: msg.conversationId,
+        isGroup: false,
+        name: `Peer ${msg.senderFingerprint.slice(0, 8)}`,
+        peerFingerprint: msg.senderFingerprint,
+        lastMessagePreview: msg.content,
+        lastMessageTimestamp: msg.timestamp,
+        unreadCount: activeConversationId.value === msg.conversationId ? 0 : 1,
+        isPinned: false,
+        isArchived: false,
+      };
+      conversations.value.unshift(conv);
+    } else if (conv) {
       conv.lastMessagePreview = msg.content;
       conv.lastMessageTimestamp = msg.timestamp;
+      if (!msg.isOutgoing && activeConversationId.value !== conv.id) {
+        conv.unreadCount = (conv.unreadCount || 0) + 1;
+      }
     }
   }
 

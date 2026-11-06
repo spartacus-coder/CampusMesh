@@ -12,6 +12,10 @@ export const campusMeshPreset: Partial<Config> = {
         "surface-active": "var(--cm-surface-active)",
         border: "var(--cm-border)",
         "border-subtle": "var(--cm-border-subtle)",
+        borderSubtle: "var(--cm-border-subtle)",
+        textPrimary: "var(--cm-text-primary)",
+        textSecondary: "var(--cm-text-secondary)",
+        textMuted: "var(--cm-text-muted)",
         primary: {
           DEFAULT: "var(--cm-primary)",
           hover: "var(--cm-primary-hover)",

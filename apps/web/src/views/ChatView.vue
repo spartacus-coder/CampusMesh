@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from "vue";
+import { ref, computed, watch } from "vue";
 import { useChatStore } from "../stores/chat";
 import { useNetworkStore } from "../stores/network";
 import { useIdentityStore } from "../stores/identity";
@@ -85,18 +85,11 @@ watch(
   (peerFp) => {
     const myFp = identityStore.identity?.fingerprint;
     if (peerFp && myFp) {
-      const roomId = `room_${[myFp, peerFp].sort().join("__")}`;
-      networkStore.connectSignaling(roomId, myFp);
-    } else {
-      networkStore.disconnectSignaling();
+      networkStore.connectToPeer(peerFp);
     }
   },
   { immediate: true },
 );
-
-onUnmounted(() => {
-  networkStore.disconnectSignaling();
-});
 
 function formatMessageTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -288,10 +281,10 @@ function handleStartVideoCall() {
 
   <div v-else class="flex h-full w-full overflow-hidden relative">
     <!-- Main Chat Column -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden bg-background">
+    <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background">
       <!-- Active Chat Header -->
       <header
-        class="flex h-16 items-center justify-between border-b border-border bg-surface px-4 shrink-0 z-10"
+        class="flex h-14 sm:h-16 items-center justify-between border-b border-border bg-surface px-3 sm:px-4 shrink-0 z-10"
       >
         <div class="flex items-center gap-3 min-w-0">
           <!-- Back button on mobile -->
@@ -388,7 +381,7 @@ function handleStartVideoCall() {
       />
 
       <!-- Message History Viewport -->
-      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <div class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3">
         <!-- E2EE Security Notice Card -->
         <div
           class="mx-auto max-w-sm rounded-xl border border-primary/20 bg-primary/5 p-3 text-center text-xs text-textSecondary select-none"
@@ -548,10 +541,10 @@ function handleStartVideoCall() {
 
       <!-- Message Composer Bar -->
       <footer
-        class="p-3 border-t border-border bg-surface shrink-0 z-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+        class="p-2.5 sm:p-3 border-t border-border bg-surface shrink-0 z-20 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)+0.5rem))]"
       >
         <form
-          class="flex items-center gap-2 max-w-4xl mx-auto"
+          class="flex items-center gap-1.5 sm:gap-2 max-w-4xl mx-auto"
           @submit.prevent="handleSendMessage"
         >
           <input
@@ -575,7 +568,7 @@ function handleStartVideoCall() {
           <Input
             v-model="inputText"
             placeholder="Type an encrypted message..."
-            class="flex-1 bg-background h-10 text-sm"
+            class="flex-1 bg-surface-subtle border-border text-textPrimary placeholder:text-textMuted h-10 text-sm"
           />
 
           <Button

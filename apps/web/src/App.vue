@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, watch } from "vue";
 import { useThemeStore } from "./stores/theme";
 import { useNetworkStore } from "./stores/network";
 import { useIdentityStore } from "./stores/identity";
@@ -9,6 +9,16 @@ import IdentityModal from "./components/IdentityModal.vue";
 const themeStore = useThemeStore();
 const networkStore = useNetworkStore();
 const identityStore = useIdentityStore();
+
+watch(
+  () => [identityStore.isUnlocked, identityStore.identity?.fingerprint] as const,
+  ([unlocked, fp]) => {
+    if (unlocked && fp) {
+      networkStore.connectUserSignaling(fp);
+    }
+  },
+  { immediate: true },
+);
 
 onMounted(async () => {
   themeStore.initTheme();

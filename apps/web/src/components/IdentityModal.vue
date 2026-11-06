@@ -148,23 +148,23 @@ function completeOnboarding() {
 
 <template>
   <div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4"
   >
     <div
-      class="bg-surface border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-200"
+      class="bg-surface border border-border rounded-2xl max-w-lg w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200"
     >
       <!-- Sub-screen: Display generated 24-word recovery phrase -->
       <template v-if="identityStore.mnemonicBackupPhrase">
-        <div class="text-center space-y-2">
+        <div class="text-center space-y-1.5">
           <div
-            class="inline-flex p-3 rounded-full bg-warning/10 text-warning border border-warning/20 mb-1"
+            class="inline-flex p-2.5 rounded-full bg-warning/10 text-warning border border-warning/20 mb-0.5"
           >
-            <ShieldAlert class="h-6 w-6" />
+            <ShieldAlert class="h-5 w-5" />
           </div>
-          <h2 class="text-lg font-bold text-textPrimary tracking-tight">
+          <h2 class="text-base sm:text-lg font-bold text-textPrimary tracking-tight">
             Your 24-Word Recovery Phrase
           </h2>
-          <p class="text-xs text-textSecondary max-w-md mx-auto">
+          <p class="text-xs text-textSecondary max-w-md mx-auto leading-relaxed">
             CampusMesh is decentralized. There are no servers, emails, or
             passwords to reset your account. Write these down in order and store
             them securely offline.
@@ -172,23 +172,23 @@ function completeOnboarding() {
         </div>
 
         <div
-          class="grid grid-cols-3 sm:grid-cols-4 gap-2 bg-surface-subtle p-4 rounded-xl border border-borderSubtle select-all font-mono text-xs max-h-56 overflow-y-auto"
+          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 bg-surface-subtle p-3 rounded-xl border border-borderSubtle select-all font-mono text-xs max-h-52 overflow-y-auto"
         >
           <div
             v-for="(word, idx) in identityStore.mnemonicBackupPhrase.split(' ')"
             :key="idx"
-            class="flex items-center gap-1.5 py-1 px-2 rounded bg-surface border border-border"
+            class="flex items-center gap-1.5 py-1 px-2 rounded bg-surface border border-border min-w-0"
           >
-            <span class="text-textSecondary text-[10px]">{{ idx + 1 }}.</span>
-            <span class="font-medium text-textPrimary">{{ word }}</span>
+            <span class="text-textSecondary text-[10px] w-4 shrink-0">{{ idx + 1 }}.</span>
+            <span class="font-medium text-textPrimary truncate">{{ word }}</span>
           </div>
         </div>
 
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           <Button
             variant="outline"
             size="sm"
-            class="gap-1.5"
+            class="gap-1.5 w-full sm:w-auto justify-center"
             @click="copyMnemonic"
           >
             <Check v-if="isCopied" class="h-4 w-4 text-success" />
@@ -197,19 +197,19 @@ function completeOnboarding() {
           </Button>
 
           <label
-            class="flex items-center gap-2 cursor-pointer text-xs text-textSecondary"
+            class="flex items-center gap-2 cursor-pointer text-xs text-textSecondary select-none"
           >
             <input
               v-model="isConfirmedBackedUp"
               type="checkbox"
-              class="rounded border-border text-primary focus:ring-primary h-4 w-4"
+              class="rounded border-border text-primary focus:ring-primary h-4 w-4 shrink-0"
             />
             <span>I have saved my recovery phrase</span>
           </label>
         </div>
 
         <Button
-          class="w-full mt-4"
+          class="w-full mt-2 h-10 font-semibold"
           :disabled="!isConfirmedBackedUp"
           @click="completeOnboarding"
         >
@@ -267,19 +267,19 @@ function completeOnboarding() {
       <!-- Sub-screen: First-time Onboarding (Create, Restore, Import) -->
       <template v-else>
         <div
-          class="flex items-center justify-between border-b border-border pb-3"
+          class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-border pb-3 gap-2.5"
         >
           <div class="flex items-center gap-2">
-            <KeyRound class="h-5 w-5 text-primary" />
+            <KeyRound class="h-5 w-5 text-primary shrink-0" />
             <h2 class="text-base font-bold text-textPrimary">
               Cryptographic Identity
             </h2>
           </div>
           <div
-            class="flex gap-1 bg-surface-subtle p-0.5 rounded-lg border border-border"
+            class="flex gap-1 bg-surface-subtle p-0.5 rounded-lg border border-border w-full sm:w-auto"
           >
             <button
-              class="px-2.5 py-1 text-xs rounded-md font-medium transition-colors"
+              class="flex-1 sm:flex-none px-2 sm:px-2.5 py-1 text-xs rounded-md font-medium transition-colors text-center"
               :class="
                 activeTab === 'create'
                   ? 'bg-surface text-primary shadow-sm font-semibold'
@@ -290,7 +290,7 @@ function completeOnboarding() {
               New
             </button>
             <button
-              class="px-2.5 py-1 text-xs rounded-md font-medium transition-colors"
+              class="flex-1 sm:flex-none px-2 sm:px-2.5 py-1 text-xs rounded-md font-medium transition-colors text-center"
               :class="
                 activeTab === 'restore'
                   ? 'bg-surface text-primary shadow-sm font-semibold'
@@ -301,7 +301,7 @@ function completeOnboarding() {
               Restore Phrase
             </button>
             <button
-              class="px-2.5 py-1 text-xs rounded-md font-medium transition-colors"
+              class="flex-1 sm:flex-none px-2 sm:px-2.5 py-1 text-xs rounded-md font-medium transition-colors text-center"
               :class="
                 activeTab === 'import'
                   ? 'bg-surface text-primary shadow-sm font-semibold'

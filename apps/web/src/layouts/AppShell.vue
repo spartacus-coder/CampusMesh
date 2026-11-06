@@ -53,7 +53,7 @@ function handleNavigate(path: string) {
 
 <template>
   <div
-    class="flex h-screen w-screen flex-col bg-background text-textPrimary overflow-hidden font-sans select-none"
+    class="flex h-screen h-[100dvh] max-h-[100dvh] w-screen flex-col bg-background text-textPrimary overflow-hidden font-sans select-none"
   >
     <!-- Level 1 System Banners -->
     <OfflineBanner v-if="!networkStore.isOnline" />
@@ -66,7 +66,7 @@ function handleNavigate(path: string) {
     />
 
     <!-- Main Responsive Application Body -->
-    <div class="flex flex-1 overflow-hidden relative">
+    <div class="flex flex-1 min-h-0 overflow-hidden relative">
       <!-- Desktop Left Navigation Rail (Hidden on mobile) -->
       <aside
         class="hidden md:flex w-16 flex-col items-center justify-between border-r border-border bg-surface py-4 z-20 shrink-0"
@@ -209,7 +209,7 @@ function handleNavigate(path: string) {
 
       <!-- Main Content / Viewport -->
       <main
-        class="flex-1 flex flex-col h-full overflow-hidden bg-background relative"
+        class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background relative"
         role="main"
       >
         <router-view />
