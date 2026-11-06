@@ -1,0 +1,245 @@
+<script setup lang="ts">
+import { ref } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { useThemeStore } from "../stores/theme";
+import { useNetworkStore } from "../stores/network";
+import { useChatStore } from "../stores/chat";
+import {
+  MessageSquare,
+  Users,
+  Settings,
+  Sun,
+  Moon,
+  Command,
+  Plus,
+  Search,
+} from "lucide-vue-next";
+import {
+  ConnectionStatusBar,
+  QuotaAlertBanner,
+  OfflineBanner,
+  Avatar,
+  Badge,
+  Input,
+  Button,
+  CommandPalette,
+} from "@campusmesh/ui";
+
+const router = useRouter();
+const route = useRoute();
+const themeStore = useThemeStore();
+const networkStore = useNetworkStore();
+const chatStore = useChatStore();
+
+const isCommandPaletteOpen = ref(false);
+const searchQuery = ref("");
+
+const navItems = [
+  { id: "chats", label: "Chats", icon: MessageSquare, path: "/" },
+  { id: "contacts", label: "Contacts", icon: Users, path: "/contacts" },
+  { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
+];
+
+function handleNavigate(path: string) {
+  router.push(path);
+}
+</script>
+
+<template>
+  <div
+    class="flex h-screen w-screen flex-col bg-background text-textPrimary overflow-hidden font-sans select-none"
+  >
+    <!-- Level 1 System Banners -->
+    <OfflineBanner v-if="!networkStore.isOnline" />
+    <QuotaAlertBanner
+      v-if="
+        networkStore.signalingState === 'UNAVAILABLE_QUOTA' &&
+        !networkStore.isQuotaAlertDismissed
+      "
+      @switch-manual="networkStore.setDirectLan(true)"
+    />
+
+    <!-- Main Responsive Application Body -->
+    <div class="flex flex-1 overflow-hidden relative">
+      <!-- Desktop Left Navigation Rail (Hidden on mobile) -->
+      <aside
+        class="hidden md:flex w-16 flex-col items-center justify-between border-r border-border bg-surface py-4 z-20 shrink-0"
+        aria-label="Desktop Navigation Rail"
+      >
+        <div class="flex flex-col items-center gap-6 w-full">
+          <!-- Logo / Brand Glyph -->
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white font-bold shadow-md shadow-primary/20 cursor-pointer active:scale-95 transition-transform"
+            title="CampusMesh Home"
+            @click="handleNavigate('/')"
+          >
+            CM
+          </div>
+
+          <!-- Main Nav Actions -->
+          <nav
+            class="flex flex-col items-center gap-2 w-full px-2"
+            role="navigation"
+          >
+            <button
+              v-for="item in navItems"
+              :key="item.id"
+              class="relative flex h-10 w-10 items-center justify-center rounded-xl text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
+              :class="{
+                'bg-primary/10 text-primary font-semibold':
+                  route.path === item.path,
+              }"
+              :title="item.label"
+              @click="handleNavigate(item.path)"
+            >
+              <component :is="item.icon" class="h-5 w-5" />
+            </button>
+          </nav>
+        </div>
+
+        <!-- Footer Utilities (Command Palette & Theme Toggle) -->
+        <div class="flex flex-col items-center gap-3 w-full px-2">
+          <button
+            class="flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
+            title="Command Palette (Cmd+K)"
+            @click="isCommandPaletteOpen = true"
+          >
+            <Command class="h-4 w-4" />
+          </button>
+          <button
+            class="flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
+            title="Toggle Dark/Light/High-Contrast Theme"
+            @click="themeStore.toggleTheme"
+          >
+            <Sun v-if="themeStore.currentTheme === 'dark'" class="h-4 w-4" />
+            <Moon v-else class="h-4 w-4" />
+          </button>
+          <Avatar
+            name="You"
+            size="sm"
+            is-online
+            class="cursor-pointer hover:ring-2 hover:ring-primary transition-all"
+          />
+        </div>
+      </aside>
+
+      <!-- Desktop Sidebar: Conversations Selector Pane -->
+      <aside
+        v-if="route.path === '/'"
+        class="hidden md:flex w-80 flex-col border-r border-border bg-surface shrink-0 z-10"
+        aria-label="Conversation List"
+      >
+        <!-- Sidebar Header -->
+        <div
+          class="p-3 border-b border-border flex items-center justify-between gap-2"
+        >
+          <h2 class="text-base font-bold text-textPrimary tracking-tight">
+            Messages
+          </h2>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            title="New Chat"
+            @click="handleNavigate('/contacts')"
+          >
+            <Plus class="h-4 w-4" />
+          </Button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="p-3 border-b border-borderSubtle">
+          <div class="relative">
+            <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-textMuted" />
+            <Input
+              v-model="searchQuery"
+              placeholder="Search conversations..."
+              class="pl-9 h-9 text-xs"
+            />
+          </div>
+        </div>
+
+        <!-- Virtualized Conversation List Placeholder -->
+        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+          <div
+            v-for="conv in chatStore.conversations"
+            :key="conv.id"
+            class="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors"
+            :class="
+              chatStore.activeConversationId === conv.id
+                ? 'bg-primary/10 border border-primary/20 text-textPrimary'
+                : 'hover:bg-surface-hover text-textSecondary'
+            "
+            @click="chatStore.selectConversation(conv.id)"
+          >
+            <Avatar :name="conv.name" size="md" :is-online="!conv.isGroup" />
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between mb-0.5">
+                <span class="text-sm font-semibold text-textPrimary truncate">{{
+                  conv.name
+                }}</span>
+                <span class="text-[10px] text-textMuted">5m</span>
+              </div>
+              <p class="text-xs text-textSecondary truncate">
+                {{ conv.lastMessagePreview }}
+              </p>
+            </div>
+            <Badge
+              v-if="conv.unreadCount > 0"
+              variant="default"
+              class="h-5 px-1.5 text-[10px]"
+            >
+              {{ conv.unreadCount }}
+            </Badge>
+          </div>
+        </div>
+
+        <!-- Quick Status Bar -->
+        <ConnectionStatusBar
+          :signaling-state="networkStore.signalingState"
+          :peer-state="networkStore.peerState"
+          :is-direct-lan="networkStore.isDirectLan"
+        />
+      </aside>
+
+      <!-- Main Content / Viewport -->
+      <main
+        class="flex-1 flex flex-col h-full overflow-hidden bg-background relative"
+        role="main"
+      >
+        <router-view />
+      </main>
+    </div>
+
+    <!-- Mobile-First Bottom Navigation Bar (Hidden on desktop) -->
+    <nav
+      class="md:hidden flex h-14 border-t border-border bg-surface items-center justify-around px-2 z-30 shrink-0 pb-[env(safe-area-inset-bottom)]"
+      aria-label="Mobile Bottom Navigation"
+    >
+      <button
+        v-for="item in navItems"
+        :key="item.id"
+        class="flex flex-col items-center justify-center flex-1 py-1 text-xs text-textSecondary transition-colors"
+        :class="{ 'text-primary font-bold': route.path === item.path }"
+        @click="handleNavigate(item.path)"
+      >
+        <component :is="item.icon" class="h-5 w-5 mb-0.5" />
+        <span>{{ item.label }}</span>
+      </button>
+      <button
+        class="flex flex-col items-center justify-center flex-1 py-1 text-xs text-textSecondary transition-colors"
+        @click="themeStore.toggleTheme"
+      >
+        <Sun v-if="themeStore.currentTheme === 'dark'" class="h-5 w-5 mb-0.5" />
+        <Moon v-else class="h-5 w-5 mb-0.5" />
+        <span>Theme</span>
+      </button>
+    </nav>
+
+    <!-- Global Command Palette Dialog -->
+    <CommandPalette
+      :is-open="isCommandPaletteOpen"
+      @update:is-open="isCommandPaletteOpen = $event"
+      @navigate="handleNavigate"
+    />
+  </div>
+</template>
