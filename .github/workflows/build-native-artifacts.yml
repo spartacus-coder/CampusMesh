@@ -66,3 +66,4 @@ jobs:
 
       - name: Build Web Application
         run: pnpm --filter @campusmesh/web build
+
