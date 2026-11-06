@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-import { CampusMeshMessagingEngine } from "./engine";
+import {
+  CampusMeshMessagingEngine,
+  calculateExponentialBackoff,
+} from "./engine";
 import { InMemoryStorageAdapter } from "@campusmesh/storage";
 import {
   generateEd25519FromSeed,
@@ -163,5 +166,60 @@ describe("@campusmesh/messaging engine suite", () => {
     // Outbox should now be empty
     const remainingOutbox = await storageAlice.getPendingOutboxMessages();
     expect(remainingOutbox).toHaveLength(0);
+  });
+
+  it("should calculate exponential backoff with jitter", () => {
+    const delay0 = calculateExponentialBackoff(0, 1000, 30000);
+    const delay1 = calculateExponentialBackoff(1, 1000, 30000);
+    const delay2 = calculateExponentialBackoff(2, 1000, 30000);
+
+    expect(delay0).toBeGreaterThanOrEqual(1000);
+    expect(delay1).toBeGreaterThanOrEqual(2000);
+    expect(delay2).toBeGreaterThanOrEqual(4000);
+    expect(delay1).toBeGreaterThan(delay0);
+  });
+
+  it("should retry pending outbox messages and deposit to mailbox fallback if enabled", async () => {
+    const storage = new InMemoryStorageAdapter();
+    const aliceSigning = generateEd25519FromSeed(new Uint8Array(32).fill(0x71));
+    const bobSigning = generateEd25519FromSeed(new Uint8Array(32).fill(0x72));
+    const aliceDh = generateX25519FromSeed(new Uint8Array(32).fill(0x73));
+    const bobDh = generateX25519FromSeed(new Uint8Array(32).fill(0x74));
+    const master = new Uint8Array(32).fill(0x75);
+
+    const ratchet = new DoubleRatchetSession(
+      master,
+      aliceDh,
+      bobDh.publicKey,
+      true,
+    );
+
+    const mailboxDeposits: Array<{ recipient: string; envelope: string }> = [];
+    const mockMailboxDeposit = vi.fn((recipient: string, envelope: string) => {
+      mailboxDeposits.push({ recipient, envelope });
+      return true;
+    });
+
+    const engine = new CampusMeshMessagingEngine({
+      storage,
+      localFingerprint: "fp-alice",
+      signingKeyPair: aliceSigning,
+      mailboxDepositCallback: mockMailboxDeposit,
+    });
+    engine.registerPeerCryptoSession("fp-bob", ratchet, bobSigning.publicKey);
+
+    // Direct transport is not connected; mailboxDepositCallback is called
+    const msg = await engine.sendTextMessage(
+      "conv-mailbox",
+      "fp-bob",
+      "Hello via ephemeral mailbox fallback!",
+    );
+
+    expect(msg.deliveryState).toBe(DeliveryState.SENT);
+    expect(mockMailboxDeposit).toHaveBeenCalledWith(
+      "fp-bob",
+      expect.any(String),
+    );
+    expect(mailboxDeposits).toHaveLength(1);
   });
 });
