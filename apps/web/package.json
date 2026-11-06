@@ -8,25 +8,39 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@campusmesh/shared-types": "workspace:*",
-    "@campusmesh/crypto": "workspace:*",
-    "@campusmesh/storage": "workspace:*",
-    "@campusmesh/protocol": "workspace:*",
-    "@campusmesh/transport": "workspace:*",
-    "@campusmesh/identity": "workspace:*",
     "@campusmesh/contacts": "workspace:*",
-    "@campusmesh/messaging": "workspace:*",
-    "@campusmesh/groups": "workspace:*",
+    "@campusmesh/crypto": "workspace:*",
     "@campusmesh/file-transfer": "workspace:*",
+    "@campusmesh/groups": "workspace:*",
+    "@campusmesh/identity": "workspace:*",
+    "@campusmesh/messaging": "workspace:*",
     "@campusmesh/notifications": "workspace:*",
-    "@campusmesh/ui": "workspace:*"
+    "@campusmesh/protocol": "workspace:*",
+    "@campusmesh/shared-types": "workspace:*",
+    "@campusmesh/storage": "workspace:*",
+    "@campusmesh/transport": "workspace:*",
+    "@campusmesh/ui": "workspace:*",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^1.0.0",
+    "pinia": "^4.1.0",
+    "tailwind-merge": "^3.7.0",
+    "vite-plugin-pwa": "^2.0.0",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0",
+    "workbox-window": "^7.4.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "autoprefixer": "^10.6.2",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.4"
+    "vite": "^8.3.5",
+    "vitest": "^2.1.4",
+    "vue-tsc": "^3.3.14"
   }
 }

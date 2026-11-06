@@ -1,28 +1,24 @@
 /**
- * Design tokens and UI themes for CampusMesh
+ * @campusmesh/ui
+ * Tokenized design system, themes, and accessible primitives for CampusMesh
  */
 
-export const THEME_COLORS = {
-  dark: {
-    background: "#0B0F17",
-    surface: "#111827",
-    surfaceHover: "#1F2937",
-    primary: "#3B82F6",
-    primaryHover: "#2563EB",
-    textPrimary: "#F9FAFB",
-    textSecondary: "#9CA3AF",
-    border: "#1F2937",
-  },
-  light: {
-    background: "#FFFFFF",
-    surface: "#F9FAFB",
-    surfaceHover: "#F3F4F6",
-    primary: "#2563EB",
-    primaryHover: "#1D4ED8",
-    textPrimary: "#111827",
-    textSecondary: "#6B7280",
-    border: "#E5E7EB",
-  },
-} as const;
+export * from "./tokens/index";
+export * from "./lib/utils";
+export * from "./tailwind-preset";
 
-export type ThemeMode = "dark" | "light" | "system";
+// UI Primitives
+export { default as Button } from "./components/ui/button/Button.vue";
+export { default as Input } from "./components/ui/input/Input.vue";
+export { default as Badge } from "./components/ui/badge/Badge.vue";
+export { default as Avatar } from "./components/ui/avatar/Avatar.vue";
+
+// Scoped UX State Components
+export { default as ConnectionStatusBar } from "./components/states/ConnectionStatusBar.vue";
+export { default as QuotaAlertBanner } from "./components/states/QuotaAlertBanner.vue";
+export { default as OfflineBanner } from "./components/states/OfflineBanner.vue";
+export { default as LoadingSkeleton } from "./components/states/LoadingSkeleton.vue";
+export { default as EmptyState } from "./components/states/EmptyState.vue";
+
+// Navigation & Actions
+export { default as CommandPalette } from "./components/navigation/CommandPalette.vue";
