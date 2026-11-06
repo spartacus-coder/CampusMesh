@@ -1,0 +1,160 @@
+import {
+  CampusMeshDatabase,
+  type StoredKeystoreRecord,
+  type StoredMessage,
+  type QueuedMessage,
+} from "./db";
+import type {
+  Contact,
+  Conversation,
+  IdentityProfile,
+  DeliveryState,
+} from "@campusmesh/shared-types";
+
+export interface IStoragePort {
+  saveIdentity(identity: IdentityProfile): Promise<void>;
+  getIdentity(): Promise<IdentityProfile | null>;
+  saveKeystore(record: StoredKeystoreRecord): Promise<void>;
+  getKeystore(id?: string): Promise<StoredKeystoreRecord | null>;
+  saveContact(contact: Contact): Promise<void>;
+  getContacts(): Promise<Contact[]>;
+  getContactByFingerprint(fingerprint: string): Promise<Contact | null>;
+  saveConversation(conversation: Conversation): Promise<void>;
+  getConversations(): Promise<Conversation[]>;
+  getConversation(id: string): Promise<Conversation | null>;
+  saveMessage(message: StoredMessage): Promise<void>;
+  getMessages(
+    conversationId: string,
+    limit?: number,
+    beforeTimestamp?: number,
+  ): Promise<StoredMessage[]>;
+  updateMessageDeliveryState(id: string, state: DeliveryState): Promise<void>;
+  queueOutboxMessage(message: QueuedMessage): Promise<void>;
+  getPendingOutboxMessages(limit?: number): Promise<QueuedMessage[]>;
+  removeOutboxMessage(id: string): Promise<void>;
+  clearAll(): Promise<void>;
+}
+
+export class DexieStorageAdapter implements IStoragePort {
+  private db: CampusMeshDatabase;
+
+  constructor(dbOrName?: CampusMeshDatabase | string) {
+    if (dbOrName instanceof CampusMeshDatabase) {
+      this.db = dbOrName;
+    } else {
+      this.db = new CampusMeshDatabase(dbOrName || "CampusMeshDB");
+    }
+  }
+
+  async saveIdentity(identity: IdentityProfile): Promise<void> {
+    await this.db.identities.put(identity);
+  }
+
+  async getIdentity(): Promise<IdentityProfile | null> {
+    const list = await this.db.identities.toArray();
+    return list[0] ?? null;
+  }
+
+  async saveKeystore(record: StoredKeystoreRecord): Promise<void> {
+    await this.db.keystores.put(record);
+  }
+
+  async getKeystore(id = "primary"): Promise<StoredKeystoreRecord | null> {
+    const record = await this.db.keystores.get(id);
+    return record ?? null;
+  }
+
+  async saveContact(contact: Contact): Promise<void> {
+    await this.db.contacts.put(contact);
+  }
+
+  async getContacts(): Promise<Contact[]> {
+    return this.db.contacts.toArray();
+  }
+
+  async getContactByFingerprint(fingerprint: string): Promise<Contact | null> {
+    const contact = await this.db.contacts
+      .where("fingerprint")
+      .equals(fingerprint)
+      .first();
+    return contact ?? null;
+  }
+
+  async saveConversation(conversation: Conversation): Promise<void> {
+    await this.db.conversations.put(conversation);
+  }
+
+  async getConversations(): Promise<Conversation[]> {
+    return this.db.conversations
+      .orderBy("lastMessageTimestamp")
+      .reverse()
+      .toArray();
+  }
+
+  async getConversation(id: string): Promise<Conversation | null> {
+    const conversation = await this.db.conversations.get(id);
+    return conversation ?? null;
+  }
+
+  async saveMessage(message: StoredMessage): Promise<void> {
+    await this.db.messages.put(message);
+  }
+
+  async getMessages(
+    conversationId: string,
+    limit = 50,
+    beforeTimestamp?: number,
+  ): Promise<StoredMessage[]> {
+    let collection = this.db.messages
+      .where("conversationId")
+      .equals(conversationId);
+    if (beforeTimestamp !== undefined) {
+      collection = collection.filter((m) => m.timestamp < beforeTimestamp);
+    }
+    const msgs = await collection.sortBy("timestamp");
+    return msgs.slice(-limit);
+  }
+
+  async updateMessageDeliveryState(
+    id: string,
+    state: DeliveryState,
+  ): Promise<void> {
+    await this.db.messages.update(id, { deliveryState: state });
+  }
+
+  async queueOutboxMessage(message: QueuedMessage): Promise<void> {
+    await this.db.outbox.put(message);
+  }
+
+  async getPendingOutboxMessages(limit = 20): Promise<QueuedMessage[]> {
+    return this.db.outbox.orderBy("createdAt").limit(limit).toArray();
+  }
+
+  async removeOutboxMessage(id: string): Promise<void> {
+    await this.db.outbox.delete(id);
+  }
+
+  async clearAll(): Promise<void> {
+    await this.db.transaction(
+      "rw",
+      [
+        this.db.identities,
+        this.db.keystores,
+        this.db.contacts,
+        this.db.conversations,
+        this.db.messages,
+        this.db.outbox,
+      ],
+      async () => {
+        await Promise.all([
+          this.db.identities.clear(),
+          this.db.keystores.clear(),
+          this.db.contacts.clear(),
+          this.db.conversations.clear(),
+          this.db.messages.clear(),
+          this.db.outbox.clear(),
+        ]);
+      },
+    );
+  }
+}

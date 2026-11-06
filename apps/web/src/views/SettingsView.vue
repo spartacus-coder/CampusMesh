@@ -1,9 +1,66 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useThemeStore } from "../stores/theme";
-import { Shield, Database, Moon, Sun, Monitor } from "lucide-vue-next";
+import { useIdentityStore } from "../stores/identity";
+import {
+  Shield,
+  Database,
+  Moon,
+  Sun,
+  Monitor,
+  KeyRound,
+  QrCode,
+  Download,
+  Lock,
+  Copy,
+  Check,
+} from "lucide-vue-next";
 import { Button, Badge } from "@campusmesh/ui";
+import IdentityCardModal from "../components/IdentityCardModal.vue";
 
 const themeStore = useThemeStore();
+const identityStore = useIdentityStore();
+
+const showQrModal = ref(false);
+const exportPassphrase = ref("");
+const showExportPrompt = ref(false);
+const exportSuccessMessage = ref<string | null>(null);
+const exportError = ref<string | null>(null);
+const isCopiedFp = ref(false);
+
+function copyFingerprint() {
+  if (identityStore.identity?.fingerprint) {
+    navigator.clipboard.writeText(identityStore.identity.fingerprint);
+    isCopiedFp.value = true;
+    setTimeout(() => {
+      isCopiedFp.value = false;
+    }, 2000);
+  }
+}
+
+async function handleExportBackup() {
+  exportError.value = null;
+  exportSuccessMessage.value = null;
+  if (!exportPassphrase.value) {
+    exportError.value = "Please enter your passphrase to encrypt the backup.";
+    return;
+  }
+  try {
+    const backupJson = await identityStore.exportBackup(exportPassphrase.value);
+    const blob = new Blob([backupJson], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campusmesh-backup-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    exportSuccessMessage.value = "Backup file downloaded successfully.";
+    exportPassphrase.value = "";
+    showExportPrompt.value = false;
+  } catch (err: any) {
+    exportError.value = err.message || "Failed to export backup.";
+  }
+}
 </script>
 
 <template>
@@ -15,9 +72,144 @@ const themeStore = useThemeStore();
         Settings & Preferences
       </h1>
       <p class="text-xs text-textSecondary mt-1">
-        Manage local storage, theme appearance, and network diagnostics.
+        Manage local identity, encryption keys, appearance, and zero-cost budget
+        guards.
       </p>
     </header>
+
+    <!-- Cryptographic Identity Card -->
+    <section class="rounded-xl border border-border bg-surface p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <KeyRound class="h-5 w-5 text-primary" />
+          <div>
+            <h2 class="text-sm font-semibold text-textPrimary">
+              Cryptographic Identity
+            </h2>
+            <p class="text-xs text-textSecondary">
+              Your decentralized identity generated from a 24-word BIP-39 seed.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <Badge v-if="identityStore.isUnlocked" variant="success"
+            >Vault Unlocked</Badge
+          >
+          <Badge v-else variant="outline">Locked</Badge>
+        </div>
+      </div>
+
+      <template v-if="identityStore.identity">
+        <div
+          class="space-y-3 bg-surface-subtle p-4 rounded-xl border border-borderSubtle"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-textSecondary font-medium"
+              >Display Name:</span
+            >
+            <span class="text-xs font-bold text-textPrimary">{{
+              identityStore.identity.displayName
+            }}</span>
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-xs text-textSecondary font-medium"
+                >Safety Fingerprint:</span
+              >
+              <button
+                class="text-xs text-primary hover:underline flex items-center gap-1"
+                @click="copyFingerprint"
+              >
+                <Check v-if="isCopiedFp" class="h-3 w-3 text-success" />
+                <Copy v-else class="h-3 w-3" />
+                <span>{{ isCopiedFp ? "Copied" : "Copy" }}</span>
+              </button>
+            </div>
+            <div
+              class="font-mono text-xs text-textPrimary break-all select-all"
+            >
+              {{ identityStore.formattedSafetyFingerprint }}
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            @click="showQrModal = true"
+          >
+            <QrCode class="h-4 w-4" />
+            <span>Show QR Card</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            class="gap-1.5"
+            @click="showExportPrompt = !showExportPrompt"
+          >
+            <Download class="h-4 w-4" />
+            <span>Export Encrypted Backup</span>
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            class="gap-1.5 text-danger"
+            @click="identityStore.lock"
+          >
+            <Lock class="h-4 w-4" />
+            <span>Lock Vault</span>
+          </Button>
+        </div>
+
+        <!-- Export Prompt Inline -->
+        <div
+          v-if="showExportPrompt"
+          class="p-4 rounded-xl border border-border bg-surface space-y-3"
+        >
+          <h3 class="text-xs font-bold text-textPrimary">
+            Confirm Passphrase for Backup Export
+          </h3>
+          <p class="text-xs text-textSecondary">
+            Enter your passphrase to verify ownership and generate the encrypted
+            backup file.
+          </p>
+          <div class="flex gap-2">
+            <input
+              v-model="exportPassphrase"
+              type="password"
+              placeholder="Enter passphrase..."
+              class="flex-1 rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-textPrimary placeholder:text-textSecondary focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <Button size="sm" @click="handleExportBackup">Download</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              @click="showExportPrompt = false"
+              >Cancel</Button
+            >
+          </div>
+          <div v-if="exportError" class="text-xs text-danger">
+            {{ exportError }}
+          </div>
+        </div>
+
+        <div
+          v-if="exportSuccessMessage"
+          class="text-xs text-success font-medium"
+        >
+          {{ exportSuccessMessage }}
+        </div>
+      </template>
+
+      <div v-else class="text-xs text-textSecondary">
+        No cryptographic identity configured. Please complete onboarding.
+      </div>
+    </section>
 
     <!-- Theme Customization Card -->
     <section class="rounded-xl border border-border bg-surface p-5 space-y-4">
@@ -124,12 +316,13 @@ const themeStore = useThemeStore();
         </div>
       </div>
       <div class="flex items-center justify-between pt-2">
-        <span class="text-xs text-textSecondary"
-          >Database Status:
-          <strong class="text-textPrimary">Healthy (Dexie Engine)</strong></span
-        >
-        <Button variant="outline" size="sm"> Export Encrypted Backup </Button>
+        <span class="text-xs text-textSecondary">
+          Database Status:
+          <strong class="text-textPrimary">Healthy (Dexie Engine)</strong>
+        </span>
       </div>
     </section>
+
+    <IdentityCardModal v-if="showQrModal" @close="showQrModal = false" />
   </div>
 </template>

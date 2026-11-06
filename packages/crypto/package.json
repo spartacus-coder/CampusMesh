@@ -12,7 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@campusmesh/shared-types": "workspace:*"
+    "@campusmesh/shared-types": "workspace:*",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@scure/bip39": "^2.4.0"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
