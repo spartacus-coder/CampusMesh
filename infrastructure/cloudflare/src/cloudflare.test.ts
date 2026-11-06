@@ -89,4 +89,64 @@ describe("Cloudflare Signaling Infrastructure", () => {
       expect.stringContaining('"type":"leave"'),
     );
   });
+
+  it("RoomCoordinator should manage ephemeral offline mailbox with 24h TTL and purge", () => {
+    const coordinator = new RoomCoordinator(null, {});
+
+    const mockSocketBob = {
+      readyState: 1,
+      send: vi.fn(),
+      addEventListener: vi.fn(),
+    } as unknown as WebSocket;
+
+    // 1. Alice deposits an encrypted envelope for offline Bob
+    coordinator.handleMessage(
+      "fp-alice",
+      JSON.stringify({
+        type: "mailbox_deposit",
+        senderFingerprint: "fp-alice",
+        targetFingerprint: "fp-bob",
+        data: "encrypted-envelope-blob-content",
+      }),
+    );
+
+    expect(coordinator.getMailboxCount()).toBe(1);
+
+    // 2. Bob connects and fetches mailbox messages
+    const socketsMap = (
+      coordinator as unknown as { sockets: Map<string, WebSocket> }
+    ).sockets;
+    socketsMap.set("fp-bob", mockSocketBob);
+
+    coordinator.handleMessage(
+      "fp-bob",
+      JSON.stringify({
+        type: "mailbox_fetch",
+        senderFingerprint: "fp-bob",
+      }),
+    );
+
+    // Bob receives his message
+    expect(mockSocketBob.send).toHaveBeenCalledWith(
+      expect.stringContaining('"type":"mailbox_deliver"'),
+    );
+    expect(mockSocketBob.send).toHaveBeenCalledWith(
+      expect.stringContaining("encrypted-envelope-blob-content"),
+    );
+
+    // Mailbox is purged after delivery
+    expect(coordinator.getMailboxCount()).toBe(0);
+
+    // 3. Test TTL expiration
+    const mailboxMap = (
+      coordinator as unknown as {
+        mailbox: Map<string, { expiresAt: number }>;
+      }
+    ).mailbox;
+    mailboxMap.set("expired-msg", { expiresAt: Date.now() - 1000 });
+    expect(coordinator.getMailboxCount()).toBe(1);
+    const purged = coordinator.purgeExpiredMailbox();
+    expect(purged).toBe(1);
+    expect(coordinator.getMailboxCount()).toBe(0);
+  });
 });

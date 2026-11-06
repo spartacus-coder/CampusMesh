@@ -2,6 +2,7 @@ import {
   SIGNALING_LIMITS,
   validateSignalingMessage,
   type SignalingRoomMessage,
+  type MailboxRecord,
 } from "./index";
 
 export interface Env {
@@ -23,6 +24,7 @@ interface DurableObjectStateLike {
 
 export class RoomCoordinator {
   private sockets = new Map<string, WebSocket>();
+  private mailbox = new Map<string, MailboxRecord>();
 
   constructor(
     public state: DurableObjectStateLike | null,
@@ -134,6 +136,63 @@ export class RoomCoordinator {
       return;
     }
 
+    if (msg.type === "mailbox_deposit") {
+      if (!msg.targetFingerprint) return;
+      this.purgeExpiredMailbox();
+
+      if (this.mailbox.size >= SIGNALING_LIMITS.MAX_MAILBOX_MESSAGES_PER_ROOM) {
+        const socket = this.sockets.get(senderFp);
+        if (socket && socket.readyState === 1) {
+          socket.send(
+            JSON.stringify({
+              type: "mailbox_deliver",
+              senderFingerprint: "server",
+              data: { error: "MAILBOX_CAPACITY_EXCEEDED" },
+            }),
+          );
+        }
+        return;
+      }
+
+      const id = `mbx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const now = Date.now();
+      const record: MailboxRecord = {
+        id,
+        recipientFingerprint: msg.targetFingerprint,
+        senderFingerprint: senderFp,
+        envelope:
+          typeof msg.data === "string" ? msg.data : JSON.stringify(msg.data),
+        createdAt: now,
+        expiresAt: now + SIGNALING_LIMITS.MAILBOX_TTL_SECONDS * 1000,
+      };
+
+      this.mailbox.set(id, record);
+      return;
+    }
+
+    if (msg.type === "mailbox_fetch") {
+      this.purgeExpiredMailbox();
+      const pending: MailboxRecord[] = [];
+      for (const [id, record] of this.mailbox.entries()) {
+        if (record.recipientFingerprint === senderFp) {
+          pending.push(record);
+          this.mailbox.delete(id);
+        }
+      }
+
+      const socket = this.sockets.get(senderFp);
+      if (socket && socket.readyState === 1) {
+        socket.send(
+          JSON.stringify({
+            type: "mailbox_deliver",
+            senderFingerprint: "server",
+            mailboxMessages: pending,
+          }),
+        );
+      }
+      return;
+    }
+
     // Direct relay to target peer
     if (msg.targetFingerprint) {
       const targetSocket = this.sockets.get(msg.targetFingerprint);
@@ -177,9 +236,30 @@ export class RoomCoordinator {
     }
   }
 
+  public purgeExpiredMailbox(): number {
+    const now = Date.now();
+    let purged = 0;
+    for (const [id, record] of this.mailbox.entries()) {
+      if (record.expiresAt <= now) {
+        this.mailbox.delete(id);
+        purged++;
+      }
+    }
+    return purged;
+  }
+
+  public getMailboxCount(): number {
+    return this.mailbox.size;
+  }
+
   async alarm() {
-    // If no connected sockets, room has expired; clean up state
-    if (this.sockets.size === 0 && this.state?.storage?.deleteAll) {
+    this.purgeExpiredMailbox();
+    // If no connected sockets and mailbox is empty, room has expired; clean up state
+    if (
+      this.sockets.size === 0 &&
+      this.mailbox.size === 0 &&
+      this.state?.storage?.deleteAll
+    ) {
       await this.state.storage.deleteAll();
     }
   }

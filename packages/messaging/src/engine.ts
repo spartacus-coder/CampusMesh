@@ -18,6 +18,23 @@ export interface MessagingEngineOptions {
   localFingerprint: string;
   signingKeyPair: Ed25519KeyPair;
   transport?: WebRtcPeerTransport | undefined;
+  mailboxDepositCallback?:
+    | ((
+        recipientFingerprint: string,
+        envelopeString: string,
+      ) => Promise<boolean> | boolean)
+    | undefined;
+}
+
+export function calculateExponentialBackoff(
+  retryCount: number,
+  baseDelayMs = 2000,
+  maxDelayMs = 60000,
+): number {
+  const jitter = Math.random() * 500;
+  const delay =
+    Math.min(baseDelayMs * Math.pow(2, retryCount), maxDelayMs) + jitter;
+  return Math.round(delay);
 }
 
 export interface PeerCryptoSession {
@@ -30,6 +47,12 @@ export class CampusMeshMessagingEngine {
   private localFingerprint: string;
   private signingKeyPair: Ed25519KeyPair;
   private transport: WebRtcPeerTransport | undefined;
+  private mailboxDepositCallback?:
+    | ((
+        recipientFingerprint: string,
+        envelopeString: string,
+      ) => Promise<boolean> | boolean)
+    | undefined;
   private sessions = new Map<string, PeerCryptoSession>();
   private sequenceCounters = new Map<string, number>();
 
@@ -44,6 +67,7 @@ export class CampusMeshMessagingEngine {
     this.localFingerprint = options.localFingerprint;
     this.signingKeyPair = options.signingKeyPair;
     this.transport = options.transport;
+    this.mailboxDepositCallback = options.mailboxDepositCallback;
 
     if (this.transport) {
       this.transport.onDataMessage = (peerFp, channel, data) => {
@@ -146,15 +170,36 @@ export class CampusMeshMessagingEngine {
       );
       this.onDeliveryStateChanged?.(messageId, DeliveryState.SENT);
     } else {
-      // Queue to outbox for retry when peer connects
-      await this.storage.queueOutboxMessage({
-        id: messageId,
-        envelope,
-        recipientFingerprint,
-        createdAt: timestamp,
-        retryCount: 0,
-        nextRetryAt: timestamp + 5000,
-      });
+      let deposited = false;
+      if (this.mailboxDepositCallback) {
+        try {
+          deposited = await this.mailboxDepositCallback(
+            recipientFingerprint,
+            serializeEnvelope(envelope),
+          );
+        } catch {
+          deposited = false;
+        }
+      }
+
+      if (deposited) {
+        storedMsg.deliveryState = DeliveryState.SENT;
+        await this.storage.updateMessageDeliveryState(
+          messageId,
+          DeliveryState.SENT,
+        );
+        this.onDeliveryStateChanged?.(messageId, DeliveryState.SENT);
+      } else {
+        // Queue to outbox for retry when peer connects
+        await this.storage.queueOutboxMessage({
+          id: messageId,
+          envelope,
+          recipientFingerprint,
+          createdAt: timestamp,
+          retryCount: 0,
+          nextRetryAt: timestamp + calculateExponentialBackoff(0),
+        });
+      }
     }
 
     return storedMsg;
@@ -319,6 +364,47 @@ export class CampusMeshMessagingEngine {
           );
           this.onDeliveryStateChanged?.(item.id, DeliveryState.SENT);
           sentCount++;
+        }
+      }
+    }
+
+    return sentCount;
+  }
+
+  /**
+   * Evaluates pending outbox queue and retries messages whose nextRetryAt <= now.
+   */
+  public async retryPendingOutbox(now = Date.now()): Promise<number> {
+    if (!this.transport) return 0;
+    const pending = await this.storage.getPendingOutboxMessages();
+    let sentCount = 0;
+
+    for (const item of pending) {
+      if (item.nextRetryAt <= now) {
+        const bytes = new TextEncoder().encode(
+          serializeEnvelope(item.envelope),
+        );
+        const success = this.transport.sendData(
+          item.recipientFingerprint,
+          "cm-messages",
+          bytes,
+        );
+        if (success) {
+          await this.storage.removeOutboxMessage(item.id);
+          await this.storage.updateMessageDeliveryState(
+            item.id,
+            DeliveryState.SENT,
+          );
+          this.onDeliveryStateChanged?.(item.id, DeliveryState.SENT);
+          sentCount++;
+        } else {
+          // Increment retry count with exponential backoff
+          const nextRetry = item.retryCount + 1;
+          await this.storage.queueOutboxMessage({
+            ...item,
+            retryCount: nextRetry,
+            nextRetryAt: now + calculateExponentialBackoff(nextRetry),
+          });
         }
       }
     }
