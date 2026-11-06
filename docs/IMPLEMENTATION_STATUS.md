@@ -1,8 +1,8 @@
 # CampusMesh Implementation Status
 
-> **Current Phase:** Phase 9 — 1-to-1 WebRTC Voice & Video Calling  
-> **Active Branch:** `feat/webrtc-calling` (Ready for PR #9 into `main`)  
-> **Last Updated:** Phase 9 Verified (111 passing tests across 29 suites)
+> **Current Phase:** Phase 10 — Decentralized Swarm R&D Evaluation (Hypercore / Hyperswarm / Autobase)  
+> **Active Branch:** `chore/hyperswarm-evaluation` (Ready for PR #10 into `main`)  
+> **Last Updated:** All 10 Phases Verified & Complete (111 passing tests across 29 suites)
 
 ---
 
@@ -25,5 +25,5 @@
 | **Offline Sync & Mailbox**     | `packages/messaging`                   | Phase 7      | Completed             | Yes           | Verified & Merged (PR #7)          |
 | **Desktop Application**        | `apps/desktop`                         | Phase 8      | Completed             | Yes           | Verified & Merged (PR #8)          |
 | **Android Application**        | `apps/mobile`                          | Phase 8      | Completed             | Yes           | Verified & Merged (PR #8)          |
-| **Voice & Video Calling**      | `packages/messaging`                   | Phase 9      | Completed             | Yes           | Verified (1-to-1 WebRTC Calls)     |
-| **Decentralized Swarm R&D**    | `experiment/pear-hyperswarm`           | Phase 10     | Next                  | Pending       | Ready for evaluation report        |
+| **Voice & Video Calling**      | `packages/messaging`                   | Phase 9      | Completed             | Yes           | Verified & Merged (PR #9)          |
+| **Decentralized Swarm R&D**    | `docs/research/HYPERSWARM_EVALUATION`  | Phase 10     | Completed             | Yes           | Verified (R&D Report Completed)    |
