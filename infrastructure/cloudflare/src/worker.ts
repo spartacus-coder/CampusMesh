@@ -5,9 +5,6 @@ export interface WorkerEnv extends Env {
     idFromName(name: string): unknown;
     get(id: unknown): { fetch(request: Request): Promise<Response> };
   };
-  ASSETS?: {
-    fetch(request: Request): Promise<Response>;
-  };
 }
 
 // In-memory per-instance burst rate limiter to guard free tier quota
@@ -102,11 +99,6 @@ export default {
       const id = env.ROOM_COORDINATOR.idFromName(roomId);
       const stub = env.ROOM_COORDINATOR.get(id);
       return stub.fetch(request);
-    }
-
-    // 3. Fallback to Cloudflare Static Assets (Web App)
-    if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
     }
 
     return new Response("Not Found", { status: 404 });
