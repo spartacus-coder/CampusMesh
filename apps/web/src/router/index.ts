@@ -1,8 +1,8 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHashHistory } from "vue-router";
 import ChatView from "../views/ChatView.vue";
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     {
       path: "/",
@@ -18,6 +18,11 @@ const router = createRouter({
       path: "/settings",
       name: "settings",
       component: () => import("../views/SettingsView.vue"),
+    },
+    {
+      path: "/download",
+      name: "download",
+      component: () => import("../views/DownloadView.vue"),
     },
   ],
 });
