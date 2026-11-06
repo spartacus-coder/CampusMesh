@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Users,
   Settings,
+  Download,
   Sun,
   Moon,
   Command,
@@ -37,6 +38,7 @@ const searchQuery = ref("");
 const navItems = [
   { id: "chats", label: "Chats", icon: MessageSquare, path: "/" },
   { id: "contacts", label: "Contacts", icon: Users, path: "/contacts" },
+  { id: "download", label: "Download", icon: Download, path: "/download" },
   { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
 ];
 

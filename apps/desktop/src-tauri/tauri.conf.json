@@ -27,7 +27,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,7 +39,9 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["en-US"]
+        "languages": [
+          "en-US"
+        ]
       }
     }
   }
