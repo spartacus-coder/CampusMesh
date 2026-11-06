@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { useChatStore } from "../stores/chat";
 import { useNetworkStore } from "../stores/network";
+import { useIdentityStore } from "../stores/identity";
 import {
   Lock,
   Send,
@@ -43,6 +44,7 @@ const chatStore = useChatStore();
 const networkStore = useNetworkStore();
 const fileTransferStore = useFileTransferStore();
 const callStore = useCallStore();
+const identityStore = useIdentityStore();
 
 const inputText = ref("");
 const isDetailsOpen = ref(false);
@@ -55,6 +57,24 @@ const activeConversation = computed(() => {
   );
 });
 
+watch(
+  () => activeConversation.value?.peerFingerprint,
+  (peerFp) => {
+    const myFp = identityStore.identity?.fingerprint;
+    if (peerFp && myFp) {
+      const roomId = `room_${[myFp, peerFp].sort().join("__")}`;
+      networkStore.connectSignaling(roomId, myFp);
+    } else {
+      networkStore.disconnectSignaling();
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  networkStore.disconnectSignaling();
+});
+
 function formatMessageTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: "2-digit",
@@ -64,22 +84,31 @@ function formatMessageTime(timestamp: number): string {
 
 function handleSendMessage() {
   if (!inputText.value.trim() || !activeConversation.value) return;
-  const newMsg: StoredMessage = {
-    id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-    conversationId: activeConversation.value.id,
-    senderFingerprint: "me",
-    content: inputText.value.trim(),
-    contentType: MessageType.TEXT,
-    timestamp: Date.now(),
-    deliveryState: networkStore.isOnline
-      ? DeliveryState.DELIVERED
-      : DeliveryState.SAVED_LOCALLY,
-    isOutgoing: true,
-    ...(activeConversation.value.peerFingerprint
-      ? { recipientFingerprint: activeConversation.value.peerFingerprint }
-      : {}),
-  };
-  chatStore.appendMessage(newMsg);
+  const myFp = identityStore.identity?.fingerprint || "me";
+  const peerFp = activeConversation.value.peerFingerprint;
+
+  if (peerFp) {
+    networkStore.sendChatMessage(
+      peerFp,
+      activeConversation.value.id,
+      inputText.value.trim(),
+      myFp,
+    );
+  } else {
+    const newMsg: StoredMessage = {
+      id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      conversationId: activeConversation.value.id,
+      senderFingerprint: myFp,
+      content: inputText.value.trim(),
+      contentType: MessageType.TEXT,
+      timestamp: Date.now(),
+      deliveryState: networkStore.isOnline
+        ? DeliveryState.DELIVERED
+        : DeliveryState.SAVED_LOCALLY,
+      isOutgoing: true,
+    };
+    chatStore.appendMessage(newMsg);
+  }
   inputText.value = "";
 }
 

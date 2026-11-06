@@ -1,6 +1,13 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { SignalingState, PeerConnectionState } from "@campusmesh/shared-types";
+import {
+  SignalingState,
+  PeerConnectionState,
+  DeliveryState,
+  MessageType,
+} from "@campusmesh/shared-types";
+import type { StoredMessage } from "@campusmesh/storage";
+import { useChatStore } from "./chat";
 import {
   SignalingClient,
   WebRtcPeerTransport,
@@ -64,6 +71,31 @@ export const useNetworkStore = defineStore("network", () => {
           signalingClient.sendCandidate(peerFp, candidate);
         }
       };
+      peerTransport.onDataMessage = (peerFp, channel, data) => {
+        if (channel === "cm-messages") {
+          try {
+            const text = new TextDecoder().decode(data);
+            const msg = JSON.parse(text);
+            const chatStore = useChatStore();
+            chatStore.appendMessage({
+              id: msg.id || `m_${Date.now()}`,
+              conversationId: msg.conversationId || `conv-${peerFp}`,
+              senderFingerprint: peerFp,
+              recipientFingerprint: msg.recipientFingerprint,
+              content: msg.content,
+              contentType: msg.contentType || MessageType.TEXT,
+              timestamp: msg.timestamp || Date.now(),
+              deliveryState: DeliveryState.DELIVERED,
+              isOutgoing: false,
+            });
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+              navigator.vibrate(40);
+            }
+          } catch (err) {
+            console.warn("Failed to process incoming P2P message:", err);
+          }
+        }
+      };
     }
 
     if (!signalingClient) {
@@ -74,6 +106,13 @@ export const useNetworkStore = defineStore("network", () => {
         signalingState.value = state;
         if (state === SignalingState.UNAVAILABLE_QUOTA) {
           isQuotaAlertDismissed.value = false;
+        }
+      };
+
+      signalingClient.onPeerJoined = async (peerFp) => {
+        if (peerTransport) {
+          const offer = await peerTransport.createOffer(peerFp);
+          signalingClient?.sendOffer(peerFp, offer);
         }
       };
 
@@ -179,6 +218,51 @@ export const useNetworkStore = defineStore("network", () => {
     });
   }
 
+  function sendChatMessage(
+    recipientFingerprint: string,
+    conversationId: string,
+    text: string,
+    localFingerprint: string,
+  ): StoredMessage {
+    const messageId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const timestamp = Date.now();
+    const payload = {
+      id: messageId,
+      conversationId,
+      content: text,
+      contentType: MessageType.TEXT,
+      timestamp,
+      senderFingerprint: localFingerprint,
+      recipientFingerprint,
+    };
+
+    let delivered = false;
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    if (peerTransport) {
+      delivered = peerTransport.sendData(
+        recipientFingerprint,
+        "cm-messages",
+        bytes,
+      );
+    }
+
+    const storedMsg: StoredMessage = {
+      id: messageId,
+      conversationId,
+      senderFingerprint: localFingerprint,
+      recipientFingerprint,
+      content: text,
+      contentType: MessageType.TEXT,
+      timestamp,
+      deliveryState: delivered ? DeliveryState.DELIVERED : DeliveryState.SENT,
+      isOutgoing: true,
+    };
+
+    const chatStore = useChatStore();
+    chatStore.appendMessage(storedMsg);
+    return storedMsg;
+  }
+
   return {
     isOnline,
     signalingState,
@@ -198,5 +282,6 @@ export const useNetworkStore = defineStore("network", () => {
     createManualOffer,
     acceptManualOffer,
     acceptManualAnswer,
+    sendChatMessage,
   };
 });
