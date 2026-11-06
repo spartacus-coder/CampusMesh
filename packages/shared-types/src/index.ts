@@ -114,11 +114,13 @@ export interface WireEnvelope {
   senderFingerprint: string;
   timestamp: number;
   sequenceNumber: number;
-  ratchetHeader?: {
-    dhPublicKey: string;
-    previousChainLength: number;
-    messageIndex: number;
-  };
+  ratchetHeader?:
+    | {
+        dhPublicKey: string;
+        previousChainLength: number;
+        messageIndex: number;
+      }
+    | undefined;
   payloadCiphertext: string;
   authTag: string;
   signature: string;

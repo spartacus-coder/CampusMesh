@@ -5,7 +5,12 @@ import { useNetworkStore } from "./network";
 import { useChatStore } from "./chat";
 import { useIdentityStore } from "./identity";
 import { InMemoryStorageAdapter } from "@campusmesh/storage";
-import { SignalingState, PeerConnectionState } from "@campusmesh/shared-types";
+import {
+  SignalingState,
+  PeerConnectionState,
+  DeliveryState,
+  MessageType,
+} from "@campusmesh/shared-types";
 
 describe("Web Stores Suite", () => {
   beforeEach(() => {
@@ -48,18 +53,40 @@ describe("Web Stores Suite", () => {
     expect(networkStore.activeRoomId).toBeNull();
   });
 
-  it("chat store should handle conversation selection and clear unread counts", () => {
+  it("chat store should handle conversation selection, message appending, and state update", () => {
     const chatStore = useChatStore();
     expect(chatStore.conversations.length).toBeGreaterThan(0);
-
-    const convAlice = chatStore.conversations.find(
-      (c) => c.id === "conv_alice",
-    );
-    expect(convAlice?.unreadCount).toBe(2);
-
-    chatStore.selectConversation("conv_alice");
     expect(chatStore.activeConversationId).toBe("conv_alice");
-    expect(convAlice?.unreadCount).toBe(0);
+    expect(chatStore.activeMessages.length).toBeGreaterThan(0);
+
+    // Append outgoing message
+    const newMsg = {
+      id: "test_msg_1",
+      conversationId: "conv_alice",
+      senderFingerprint: "me",
+      content: "Testing direct message store",
+      contentType: MessageType.TEXT,
+      timestamp: Date.now(),
+      deliveryState: DeliveryState.SAVED_LOCALLY,
+      isOutgoing: true,
+    };
+    chatStore.appendMessage(newMsg);
+    expect(chatStore.activeMessages.some((m) => m.id === "test_msg_1")).toBe(
+      true,
+    );
+
+    // Update delivery state
+    chatStore.updateMessageDelivery(
+      "conv_alice",
+      "test_msg_1",
+      DeliveryState.DELIVERED,
+    );
+    const updated = chatStore.activeMessages.find((m) => m.id === "test_msg_1");
+    expect(updated?.deliveryState).toBe(DeliveryState.DELIVERED);
+
+    // Select different conversation
+    chatStore.selectConversation("conv_general");
+    expect(chatStore.activeConversationId).toBe("conv_general");
   });
 
   it("identity store should manage cryptographic identity lifecycle", async () => {

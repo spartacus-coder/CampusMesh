@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@campusmesh/crypto": "workspace:*",
     "@campusmesh/shared-types": "workspace:*"
   },
   "devDependencies": {
