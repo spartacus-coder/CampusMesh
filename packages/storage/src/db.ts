@@ -19,7 +19,7 @@ export interface StoredMessage {
   id: string;
   conversationId: string;
   senderFingerprint: string;
-  recipientFingerprint?: string;
+  recipientFingerprint?: string | undefined;
   content: string;
   contentType: MessageType;
   timestamp: number;

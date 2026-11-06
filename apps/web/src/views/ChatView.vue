@@ -23,7 +23,8 @@ import {
   Badge,
   ConnectionStatusBar,
 } from "@campusmesh/ui";
-import { DeliveryState } from "@campusmesh/shared-types";
+import { DeliveryState, MessageType } from "@campusmesh/shared-types";
+import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
 
 const chatStore = useChatStore();
@@ -39,57 +40,31 @@ const activeConversation = computed(() => {
   );
 });
 
-// Sample timeline messages demonstrating the 6 delivery states
-const sampleMessages = ref([
-  {
-    id: "m1",
-    sender: "Alice",
-    isMe: false,
-    text: "Hey! Are you connected directly over WebRTC DataChannel?",
-    timestamp: "10:42 AM",
-    state: DeliveryState.READ,
-  },
-  {
-    id: "m2",
-    sender: "You",
-    isMe: true,
-    text: "Yes! Direct P2P connection established. Zero plaintext passed through signaling.",
-    timestamp: "10:43 AM",
-    state: DeliveryState.READ,
-  },
-  {
-    id: "m3",
-    sender: "Alice",
-    isMe: false,
-    text: "Awesome. End-to-end encrypted with forward secrecy.",
-    timestamp: "10:44 AM",
-    state: DeliveryState.DELIVERED,
-  },
-  {
-    id: "m4",
-    sender: "You",
-    isMe: true,
-    text: "Testing responsive layout and PWA shell on Phase 1 branch.",
-    timestamp: "10:45 AM",
-    state: DeliveryState.SENT,
-  },
-]);
+function formatMessageTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function handleSendMessage() {
-  if (!inputText.value.trim()) return;
-  sampleMessages.value.push({
-    id: `m_${Date.now()}`,
-    sender: "You",
-    isMe: true,
-    text: inputText.value.trim(),
-    timestamp: new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    state: networkStore.isOnline
+  if (!inputText.value.trim() || !activeConversation.value) return;
+  const newMsg: StoredMessage = {
+    id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    conversationId: activeConversation.value.id,
+    senderFingerprint: "me",
+    content: inputText.value.trim(),
+    contentType: MessageType.TEXT,
+    timestamp: Date.now(),
+    deliveryState: networkStore.isOnline
       ? DeliveryState.DELIVERED
       : DeliveryState.SAVED_LOCALLY,
-  });
+    isOutgoing: true,
+    ...(activeConversation.value.peerFingerprint
+      ? { recipientFingerprint: activeConversation.value.peerFingerprint }
+      : {}),
+  };
+  chatStore.appendMessage(newMsg);
   inputText.value = "";
 }
 </script>
@@ -199,44 +174,54 @@ function handleSendMessage() {
 
         <!-- Chat Bubble Stream -->
         <div
-          v-for="msg in sampleMessages"
+          v-for="msg in chatStore.activeMessages"
           :key="msg.id"
           class="flex flex-col"
-          :class="msg.isMe ? 'items-end' : 'items-start'"
+          :class="msg.isOutgoing ? 'items-end' : 'items-start'"
         >
           <div class="flex items-end gap-2 max-w-[80%] md:max-w-[70%]">
             <div
               class="rounded-2xl px-4 py-2.5 shadow-xs text-sm"
               :class="
-                msg.isMe
+                msg.isOutgoing
                   ? 'bg-primary text-white rounded-br-xs'
                   : 'bg-surface text-textPrimary border border-borderSubtle rounded-bl-xs'
               "
             >
-              <p class="break-words leading-relaxed">{{ msg.text }}</p>
+              <p class="break-words leading-relaxed">{{ msg.content }}</p>
               <div
                 class="flex items-center justify-end gap-1 text-[10px] mt-1 select-none"
-                :class="msg.isMe ? 'text-white/80' : 'text-textMuted'"
+                :class="msg.isOutgoing ? 'text-white/80' : 'text-textMuted'"
               >
-                <span>{{ msg.timestamp }}</span>
+                <span>{{ formatMessageTime(msg.timestamp) }}</span>
                 <!-- 6-State Delivery Indicator Icons -->
                 <Clock
-                  v-if="msg.isMe && msg.state === DeliveryState.SAVED_LOCALLY"
+                  v-if="
+                    msg.isOutgoing &&
+                    msg.deliveryState === DeliveryState.SAVED_LOCALLY
+                  "
                   class="h-3 w-3 text-warning"
                   title="Saved locally"
                 />
                 <Check
-                  v-else-if="msg.isMe && msg.state === DeliveryState.SENT"
+                  v-else-if="
+                    msg.isOutgoing && msg.deliveryState === DeliveryState.SENT
+                  "
                   class="h-3 w-3 text-white/70"
                   title="Sent to peer"
                 />
                 <CheckCheck
-                  v-else-if="msg.isMe && msg.state === DeliveryState.DELIVERED"
+                  v-else-if="
+                    msg.isOutgoing &&
+                    msg.deliveryState === DeliveryState.DELIVERED
+                  "
                   class="h-3 w-3 text-white/90"
                   title="Delivered"
                 />
                 <CheckCheck
-                  v-else-if="msg.isMe && msg.state === DeliveryState.READ"
+                  v-else-if="
+                    msg.isOutgoing && msg.deliveryState === DeliveryState.READ
+                  "
                   class="h-3 w-3 text-sky-200"
                   title="Read"
                 />

@@ -14,6 +14,7 @@ import {
   formatSafetyNumber,
   encryptKeystore,
   decryptKeystore,
+  DoubleRatchetSession,
 } from "./index";
 
 describe("@campusmesh/crypto - Comprehensive Cryptographic Suite", () => {
@@ -121,5 +122,64 @@ describe("@campusmesh/crypto - Comprehensive Cryptographic Suite", () => {
 
     // Decrypt with wrong passphrase must throw
     await expect(decryptKeystore(blob, "WrongPassword")).rejects.toThrow();
+  });
+
+  it("should perform Double Ratchet E2EE bidirectional messaging with Forward Secrecy and Out-of-Order delivery", async () => {
+    const sharedSecret = new Uint8Array(32).fill(0x55);
+    const aliceDhSeed = new Uint8Array(32).fill(0x11);
+    const bobDhSeed = new Uint8Array(32).fill(0x22);
+
+    const aliceDh = generateX25519FromSeed(aliceDhSeed);
+    const bobDh = generateX25519FromSeed(bobDhSeed);
+
+    // Alice initializes with Bob's public ratchet key
+    const aliceSession = new DoubleRatchetSession(
+      sharedSecret,
+      aliceDh,
+      bobDh.publicKey,
+      true,
+    );
+    // Bob initializes with his keypair
+    const bobSession = new DoubleRatchetSession(sharedSecret, bobDh);
+
+    // 1. Alice -> Bob: Message 1
+    const p1 = new TextEncoder().encode("Hello Bob from Alice!");
+    const enc1 = await aliceSession.encrypt(p1);
+    const dec1 = await bobSession.decrypt(enc1);
+    expect(new TextDecoder().decode(dec1)).toBe("Hello Bob from Alice!");
+
+    // 2. Bob -> Alice: Message 2 (steps DH ratchet)
+    const p2 = new TextEncoder().encode("Hey Alice, ratchet stepped!");
+    const enc2 = await bobSession.encrypt(p2);
+    const dec2 = await aliceSession.decrypt(enc2);
+    expect(new TextDecoder().decode(dec2)).toBe("Hey Alice, ratchet stepped!");
+
+    // 3. Alice -> Bob: Out-of-order messages (msg 3, msg 4, msg 5)
+    const m3 = await aliceSession.encrypt(
+      new TextEncoder().encode("Message 3"),
+    );
+    const m4 = await aliceSession.encrypt(
+      new TextEncoder().encode("Message 4"),
+    );
+    const m5 = await aliceSession.encrypt(
+      new TextEncoder().encode("Message 5"),
+    );
+
+    // Bob receives Message 5 first!
+    const dec5 = await bobSession.decrypt(m5);
+    expect(new TextDecoder().decode(dec5)).toBe("Message 5");
+
+    // Bob then receives delayed Message 3 and Message 4
+    const dec3 = await bobSession.decrypt(m3);
+    const dec4 = await bobSession.decrypt(m4);
+    expect(new TextDecoder().decode(dec3)).toBe("Message 3");
+    expect(new TextDecoder().decode(dec4)).toBe("Message 4");
+
+    // 4. Tampered message rejection
+    const tampered = {
+      ...m5,
+      ciphertext: m5.ciphertext.substring(0, m5.ciphertext.length - 4) + "ffff",
+    };
+    await expect(bobSession.decrypt(tampered)).rejects.toThrow();
   });
 });

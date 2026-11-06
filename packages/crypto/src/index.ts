@@ -9,6 +9,7 @@ export * from "./ed25519";
 export * from "./x25519";
 export * from "./fingerprint";
 export * from "./keystore";
+export * from "./ratchet";
 
 export interface ICryptoEngine {
   generateRandomBytes(length: number): Uint8Array;
