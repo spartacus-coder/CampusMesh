@@ -6,6 +6,7 @@ import type {
   DeliveryState,
   MessageType,
   WireEnvelope,
+  MeshGroup,
 } from "@campusmesh/shared-types";
 import type { EncryptedKeystoreBlob } from "@campusmesh/crypto";
 
@@ -40,6 +41,7 @@ export class CampusMeshDatabase extends Dexie {
   identities!: EntityTable<IdentityProfile, "id">;
   keystores!: EntityTable<StoredKeystoreRecord, "id">;
   contacts!: EntityTable<Contact, "id">;
+  groups!: EntityTable<MeshGroup, "id">;
   conversations!: EntityTable<Conversation, "id">;
   messages!: EntityTable<StoredMessage, "id">;
   outbox!: EntityTable<QueuedMessage, "id">;
@@ -50,6 +52,7 @@ export class CampusMeshDatabase extends Dexie {
       identities: "id, fingerprint, createdAt",
       keystores: "id, updatedAt",
       contacts: "id, fingerprint, displayName, isBlocked",
+      groups: "id, name, ownerFingerprint, createdAt",
       conversations:
         "id, isGroup, peerFingerprint, lastMessageTimestamp, unreadCount, isPinned, isArchived",
       messages:

@@ -1,10 +1,8 @@
-import { GroupRole } from "@campusmesh/shared-types";
+export * from "./group-manager";
 
-export interface GroupMember {
-  fingerprint: string;
-  role: GroupRole;
-  joinedAt: number;
-}
+import { GroupRole, type GroupMember } from "@campusmesh/shared-types";
+
+export type { GroupMember };
 
 export class BoundedGroupMesh {
   public static readonly MAX_ACTIVE_PEERS = 8;
