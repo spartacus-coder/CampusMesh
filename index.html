@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusMesh — Download Zero-Cost P2P Communication Platform</title>
+  <meta name="description" content="Download CampusMesh for Windows, Android, and Web. Zero-cost, decentralized peer-to-peer messaging with Double Ratchet E2EE and WebRTC.">
+  <link rel="icon" type="image/svg+xml" href="./app/favicon.ico">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: '#0B0F17',
+            surface: '#111827',
+            surfaceHover: '#1F293D',
+            border: '#1F293D',
+            primary: '#3B82F6',
+            primaryHover: '#2563EB',
+            success: '#10B981',
+            accent: '#8B5CF6'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0B0F17; color: #F9FAFB; font-family: system-ui, -apple-system, sans-serif; }
+    .glow-primary { box-shadow: 0 0 30px -5px rgba(59, 130, 246, 0.3); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-primary/20 selection:text-primary">
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-border bg-surface/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-primary flex items-center justify-center font-bold text-white shadow-md shadow-primary/25">
+          CM
+        </div>
+        <span class="font-bold text-lg tracking-tight">CampusMesh</span>
+        <span class="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full font-mono font-medium">v1.0.0</span>
+      </div>
+
+      <nav class="flex items-center gap-3">
+        <a href="https://github.com/spartacus-coder/CampusMesh" target="_blank" rel="noopener noreferrer" class="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-surfaceHover">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          GitHub
+        </a>
+        <a href="./app/" class="text-sm font-semibold bg-primary hover:bg-primaryHover text-white px-4 py-2 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center gap-1.5">
+          Launch Web App &rarr;
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section with Compatible OS Indicator -->
+  <main class="max-w-5xl mx-auto px-4 py-12 flex flex-col gap-10">
+    <div class="text-center flex flex-col items-center gap-3">
+      <div class="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase">
+        <span class="h-2 w-2 rounded-full bg-primary animate-ping"></span>
+        Zero-Cost Infrastructure &bull; P2P Mesh
+      </div>
+      <h1 class="text-4xl md:text-6xl font-black tracking-tight text-white max-w-3xl">
+        Private Campus Communication, Everywhere.
+      </h1>
+      <p class="text-base md:text-xl text-gray-400 max-w-2xl">
+        End-to-end encrypted messaging, voice/video calls, and file transfer directly between peers. Exactly $0/month server costs.
+      </p>
+    </div>
+
+    <!-- Dynamic Auto-Detected OS Recommendation Box -->
+    <div id="detected-box" class="border-2 border-primary bg-surface rounded-2xl p-6 md:p-8 glow-primary flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex items-start gap-4">
+        <div id="os-icon" class="p-4 rounded-2xl bg-primary/15 text-primary shrink-0">
+          <svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5 mb-1">
+            <span class="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1.5">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+              Compatible with your device
+            </span>
+            <span id="detected-tag" class="text-xs text-gray-500 font-mono">Checking system...</span>
+          </div>
+          <h2 id="detected-title" class="text-2xl font-bold text-white">CampusMesh for Your Device</h2>
+          <p id="detected-desc" class="text-sm text-gray-400 mt-1 max-w-xl">
+            Detecting hardware architecture and operating system...
+          </p>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0">
+        <a id="detected-cta-btn" href="./app/" class="flex items-center justify-center gap-2 bg-primary hover:bg-primaryHover text-white px-6 py-3.5 rounded-xl font-bold shadow-lg shadow-primary/25 transition-all text-sm w-full md:w-auto">
+          Download Installer
+        </a>
+      </div>
+    </div>
+
+    <!-- Platform Download Matrix Cards -->
+    <div>
+      <h3 class="text-xl font-bold tracking-tight text-white mb-4">Available Platforms</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <!-- Windows Desktop -->
+        <div id="card-windows" class="border border-border bg-surface rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all">
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400">
+                <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.901-1.799"/></svg>
+              </div>
+              <span id="badge-windows" class="text-xs border border-border px-2.5 py-0.5 rounded-full text-gray-400 font-medium">Desktop</span>
+            </div>
+            <div>
+              <h4 class="text-lg font-bold text-white">Windows (x64)</h4>
+              <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                Native Tauri 2 desktop app. NSIS installer, Windows tray, deep linking (<code class="text-primary">campusmesh://</code>), and hardware encryption.
+              </p>
+            </div>
+            <div class="text-xs text-gray-500 font-mono space-y-1">
+              <div>Requires: Windows 10/11</div>
+              <div>Package: .exe (x64 NSIS)</div>
+              <div>Release: v1.0.0</div>
+            </div>
+          </div>
+          <a href="https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0_x64-setup.exe" class="flex items-center justify-center gap-2 bg-blue-500/10 hover:bg-blue-600 text-blue-400 hover:text-white px-4 py-2.5 rounded-xl font-semibold text-xs transition-colors">
+            Download for Windows (.exe)
+          </a>
+        </div>
+
+        <!-- Android Mobile -->
+        <div id="card-android" class="border border-border bg-surface rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all">
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
+                <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-1.0003s.4482-1.0003.9993-1.0003c.551 0 .9992.4486.9992 1.0003s-.4482 1.0003-.9992 1.0003m-11.046 0c-.5511 0-.9993-.4486-.9993-1.0003s.4482-1.0003.9993-1.0003c.5511 0 .9993.4486.9993 1.0003s-.4482 1.0003-.9993 1.0003m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4126 13.8533 8.0818 12 8.0818c-1.8533 0-3.5902.3308-5.1368.8679L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.1521.5676l1.9973 3.4592C2.6889 11.1867.3432 14.6589 0 18.761h24c-.3432-4.1021-2.6889-7.5743-6.1185-9.4396"/></svg>
+              </div>
+              <span id="badge-android" class="text-xs border border-border px-2.5 py-0.5 rounded-full text-gray-400 font-medium">Mobile</span>
+            </div>
+            <div>
+              <h4 class="text-lg font-bold text-white">Android (APK)</h4>
+              <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                Capacitor 8 native package. Multicast Wi-Fi lock for offline LAN peer discovery without central servers.
+              </p>
+            </div>
+            <div class="text-xs text-gray-500 font-mono space-y-1">
+              <div>Requires: Android 8.0+</div>
+              <div>Package: Universal .apk</div>
+              <div>Release: v1.0.0</div>
+            </div>
+          </div>
+          <a href="https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0.apk" class="flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-400 hover:text-white px-4 py-2.5 rounded-xl font-semibold text-xs transition-colors">
+            Download Android APK (.apk)
+          </a>
+        </div>
+
+        <!-- Web Application (PWA) -->
+        <div id="card-web" class="border border-border bg-surface rounded-2xl p-6 flex flex-col justify-between gap-5 transition-all">
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <div class="p-3 rounded-xl bg-purple-500/10 text-purple-400">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+              </div>
+              <span class="text-xs border border-border px-2.5 py-0.5 rounded-full text-gray-400 font-medium">Web PWA</span>
+            </div>
+            <div>
+              <h4 class="text-lg font-bold text-white">Web Application</h4>
+              <p class="text-xs text-gray-400 mt-1 leading-relaxed">
+                Zero installation required. Runs directly in Chrome, Firefox, Safari, Edge with offline-first service worker.
+              </p>
+            </div>
+            <div class="text-xs text-gray-500 font-mono space-y-1">
+              <div>Requires: Modern Web Browser</div>
+              <div>Storage: IndexedDB (Client)</div>
+              <div>Format: PWA Installable</div>
+            </div>
+          </div>
+          <a href="./app/" class="flex items-center justify-center gap-2 bg-purple-500/10 hover:bg-purple-600 text-purple-400 hover:text-white px-4 py-2.5 rounded-xl font-semibold text-xs transition-colors">
+            Launch Web App &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Pairing QR Code Section -->
+    <div class="border border-border bg-surface rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="space-y-2">
+        <h3 class="text-xl font-bold text-white">Scan with Your Phone</h3>
+        <p class="text-sm text-gray-400 max-w-lg">
+          Point your smartphone camera at this QR code to instantly launch the CampusMesh Web PWA on your mobile browser or download the native APK.
+        </p>
+        <div class="text-xs text-primary font-mono pt-2">
+          URL: https://spartacus-coder.github.io/CampusMesh/app/
+        </div>
+      </div>
+
+      <div class="p-3 bg-white rounded-2xl shadow-xl shrink-0">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=https%3A%2F%2Fspartacus-coder.github.io%2FCampusMesh%2Fapp%2F" alt="CampusMesh Mobile QR" class="h-32 w-32">
+      </div>
+    </div>
+
+    <!-- Feature Pillars -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="p-5 border border-border bg-surface rounded-xl flex flex-col gap-2">
+        <div class="text-emerald-400 font-bold flex items-center gap-2">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          Double Ratchet E2EE
+        </div>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          Forward Secrecy and Post-Compromise Security. All messages and envelopes signed with Ed25519 and encrypted with AES-256-GCM.
+        </p>
+      </div>
+
+      <div class="p-5 border border-border bg-surface rounded-xl flex flex-col gap-2">
+        <div class="text-blue-400 font-bold flex items-center gap-2">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Direct WebRTC Mesh
+        </div>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          Direct peer-to-peer data channels for control, messages, and chunked file transfer with bounded 8-peer mesh limits.
+        </p>
+      </div>
+
+      <div class="p-5 border border-border bg-surface rounded-xl flex flex-col gap-2">
+        <div class="text-purple-400 font-bold flex items-center gap-2">
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Strictly Zero-Cost
+        </div>
+        <p class="text-xs text-gray-400 leading-relaxed">
+          Permanent $0.00/month infrastructure cost. Free Cloudflare Durable Objects signaling and public STUN fallback.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-border bg-surface py-6">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between text-xs text-gray-500 gap-3">
+      <span>CampusMesh v1.0.0 &bull; Released under MIT License</span>
+      <div class="flex items-center gap-4">
+        <a href="https://github.com/spartacus-coder/CampusMesh/releases/tag/v1.0.0" class="hover:text-white transition-colors">GitHub Release</a>
+        <a href="https://github.com/spartacus-coder/CampusMesh/blob/main/docs/SECURITY.md" class="hover:text-white transition-colors">Security Policy</a>
+        <a href="https://github.com/spartacus-coder/CampusMesh/blob/main/docs/COST_POLICY.md" class="hover:text-white transition-colors">Cost Policy</a>
+        <a href="./app/" class="text-primary hover:underline">Web App</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Real-time OS Detection Engine -->
+  <script>
+    (function detectAndApply() {
+      const ua = navigator.userAgent.toLowerCase();
+      const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+      
+      let os = 'unknown';
+      if (ua.includes('android')) os = 'android';
+      else if (platform.includes('win') || ua.includes('windows')) os = 'windows';
+      else if (platform.includes('mac') || ua.includes('macintosh') || ua.includes('darwin')) os = 'macos';
+      else if (platform.includes('linux') || ua.includes('linux')) os = 'linux';
+      else if (/iphone|ipad|ipod/.test(ua)) os = 'ios';
+
+      const tag = document.getElementById('detected-tag');
+      const title = document.getElementById('detected-title');
+      const desc = document.getElementById('detected-desc');
+      const btn = document.getElementById('detected-cta-btn');
+
+      const winUrl = 'https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0_x64-setup.exe';
+      const androidUrl = 'https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0.apk';
+      const webUrl = './app/';
+
+      if (os === 'windows') {
+        tag.textContent = 'Windows (x64 Architecture)';
+        title.textContent = 'CampusMesh for Windows Desktop';
+        desc.textContent = 'Native Tauri 2 desktop application with NSIS installer, Windows notification integration, and custom campusmesh:// deep link handling.';
+        btn.textContent = 'Download Windows Setup (.exe)';
+        btn.href = winUrl;
+        document.getElementById('card-windows').classList.add('ring-2', 'ring-blue-500', 'bg-blue-950/20');
+        document.getElementById('badge-windows').className = 'text-xs bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2.5 py-0.5 rounded-full font-bold';
+        document.getElementById('badge-windows').textContent = 'Recommended for you';
+      } else if (os === 'android') {
+        tag.textContent = 'Android OS';
+        title.textContent = 'CampusMesh for Android';
+        desc.textContent = 'Native Capacitor 8 Android application with Wi-Fi multicast lock for offline LAN peer discovery and real-time mesh messaging.';
+        btn.textContent = 'Download Android APK (.apk)';
+        btn.href = androidUrl;
+        document.getElementById('card-android').classList.add('ring-2', 'ring-emerald-500', 'bg-emerald-950/20');
+        document.getElementById('badge-android').className = 'text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full font-bold';
+        document.getElementById('badge-android').textContent = 'Recommended for you';
+      } else if (os === 'macos' || os === 'linux' || os === 'ios') {
+        tag.textContent = os.toUpperCase() + ' System';
+        title.textContent = 'CampusMesh Web Progressive App';
+        desc.textContent = 'Universal Progressive Web App (PWA) with full offline support, IndexedDB persistence, and peer-to-peer WebRTC DataChannels.';
+        btn.textContent = 'Launch Web App &rarr;';
+        btn.href = webUrl;
+        document.getElementById('card-web').classList.add('ring-2', 'ring-purple-500', 'bg-purple-950/20');
+      } else {
+        tag.textContent = 'Web Browser';
+        title.textContent = 'CampusMesh Cross-Platform P2P';
+        desc.textContent = 'Access the instant browser Web App or choose a native package below.';
+        btn.textContent = 'Launch Web App &rarr;';
+        btn.href = webUrl;
+      }
+    })();
+  </script>
+</body>
+</html>
