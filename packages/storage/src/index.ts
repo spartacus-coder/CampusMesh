@@ -6,6 +6,7 @@ import type {
   Conversation,
   IdentityProfile,
   DeliveryState,
+  MeshGroup,
 } from "@campusmesh/shared-types";
 import type { IStoragePort } from "./dexie-adapter";
 import type { StoredKeystoreRecord, StoredMessage, QueuedMessage } from "./db";
@@ -14,6 +15,7 @@ export class InMemoryStorageAdapter implements IStoragePort {
   private identity: IdentityProfile | null = null;
   private keystores: Map<string, StoredKeystoreRecord> = new Map();
   private contacts: Map<string, Contact> = new Map();
+  private groups: Map<string, MeshGroup> = new Map();
   private conversations: Map<string, Conversation> = new Map();
   private messages: Map<string, StoredMessage> = new Map();
   private outbox: Map<string, QueuedMessage> = new Map();
@@ -47,6 +49,28 @@ export class InMemoryStorageAdapter implements IStoragePort {
       if (c.fingerprint === fingerprint) return c;
     }
     return null;
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    this.contacts.delete(id);
+  }
+
+  async saveGroup(group: MeshGroup): Promise<void> {
+    this.groups.set(group.id, group);
+  }
+
+  async getGroups(): Promise<MeshGroup[]> {
+    return Array.from(this.groups.values()).sort(
+      (a, b) => b.createdAt - a.createdAt,
+    );
+  }
+
+  async getGroup(id: string): Promise<MeshGroup | null> {
+    return this.groups.get(id) ?? null;
+  }
+
+  async deleteGroup(id: string): Promise<void> {
+    this.groups.delete(id);
   }
 
   async saveConversation(conversation: Conversation): Promise<void> {
@@ -110,6 +134,7 @@ export class InMemoryStorageAdapter implements IStoragePort {
     this.identity = null;
     this.keystores.clear();
     this.contacts.clear();
+    this.groups.clear();
     this.conversations.clear();
     this.messages.clear();
     this.outbox.clear();

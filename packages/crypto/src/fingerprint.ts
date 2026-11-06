@@ -45,3 +45,21 @@ export function formatSafetyNumber(
 
   return numbers.join(" ");
 }
+
+/**
+ * Generates human-readable Safety Numbers from public keys or fingerprint strings.
+ */
+export function generateSafetyNumber(
+  identifierA: string | Uint8Array,
+  identifierB: string | Uint8Array,
+): string {
+  const bytesA =
+    typeof identifierA === "string"
+      ? new TextEncoder().encode(identifierA)
+      : identifierA;
+  const bytesB =
+    typeof identifierB === "string"
+      ? new TextEncoder().encode(identifierB)
+      : identifierB;
+  return formatSafetyNumber(bytesA, bytesB);
+}

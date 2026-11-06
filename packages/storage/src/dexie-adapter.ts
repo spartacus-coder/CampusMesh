@@ -9,6 +9,7 @@ import type {
   Conversation,
   IdentityProfile,
   DeliveryState,
+  MeshGroup,
 } from "@campusmesh/shared-types";
 
 export interface IStoragePort {
@@ -19,6 +20,11 @@ export interface IStoragePort {
   saveContact(contact: Contact): Promise<void>;
   getContacts(): Promise<Contact[]>;
   getContactByFingerprint(fingerprint: string): Promise<Contact | null>;
+  deleteContact(id: string): Promise<void>;
+  saveGroup(group: MeshGroup): Promise<void>;
+  getGroups(): Promise<MeshGroup[]>;
+  getGroup(id: string): Promise<MeshGroup | null>;
+  deleteGroup(id: string): Promise<void>;
   saveConversation(conversation: Conversation): Promise<void>;
   getConversations(): Promise<Conversation[]>;
   getConversation(id: string): Promise<Conversation | null>;
@@ -78,6 +84,27 @@ export class DexieStorageAdapter implements IStoragePort {
       .equals(fingerprint)
       .first();
     return contact ?? null;
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    await this.db.contacts.delete(id);
+  }
+
+  async saveGroup(group: MeshGroup): Promise<void> {
+    await this.db.groups.put(group);
+  }
+
+  async getGroups(): Promise<MeshGroup[]> {
+    return this.db.groups.orderBy("createdAt").reverse().toArray();
+  }
+
+  async getGroup(id: string): Promise<MeshGroup | null> {
+    const group = await this.db.groups.get(id);
+    return group ?? null;
+  }
+
+  async deleteGroup(id: string): Promise<void> {
+    await this.db.groups.delete(id);
   }
 
   async saveConversation(conversation: Conversation): Promise<void> {
@@ -141,6 +168,7 @@ export class DexieStorageAdapter implements IStoragePort {
         this.db.identities,
         this.db.keystores,
         this.db.contacts,
+        this.db.groups,
         this.db.conversations,
         this.db.messages,
         this.db.outbox,
@@ -150,6 +178,7 @@ export class DexieStorageAdapter implements IStoragePort {
           this.db.identities.clear(),
           this.db.keystores.clear(),
           this.db.contacts.clear(),
+          this.db.groups.clear(),
           this.db.conversations.clear(),
           this.db.messages.clear(),
           this.db.outbox.clear(),

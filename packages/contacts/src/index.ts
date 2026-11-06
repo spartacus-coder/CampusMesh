@@ -1,3 +1,5 @@
+export * from "./contact-manager";
+
 import type { Contact } from "@campusmesh/shared-types";
 
 export class ContactBook {

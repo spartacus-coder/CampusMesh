@@ -4,6 +4,7 @@ import { useThemeStore } from "./theme";
 import { useNetworkStore } from "./network";
 import { useChatStore } from "./chat";
 import { useIdentityStore } from "./identity";
+import { useContactsStore } from "./contacts";
 import { InMemoryStorageAdapter } from "@campusmesh/storage";
 import {
   SignalingState,
@@ -116,5 +117,60 @@ describe("Web Stores Suite", () => {
     // Unlock
     await identityStore.unlock("TestPassword123!");
     expect(identityStore.isUnlocked).toBe(true);
+  });
+
+  it("contacts store should manage contact directory and mesh groups", async () => {
+    const contactsStore = useContactsStore();
+    const storage = new InMemoryStorageAdapter();
+    contactsStore.setStorageAdapter(storage, "fp-my-local-user");
+
+    // Add contact
+    const contact = await contactsStore.addContact({
+      displayName: "Alice",
+      fingerprint: "fp-peer-alice-12345",
+    });
+    expect(contact.displayName).toBe("Alice");
+    expect(contactsStore.contacts).toHaveLength(1);
+
+    // Verify contact
+    await contactsStore.verifyContact("fp-peer-alice-12345", true);
+    expect(contactsStore.contacts[0]?.isVerified).toBe(true);
+    expect(contactsStore.verifiedContacts).toHaveLength(1);
+
+    // Filter verified
+    contactsStore.activeFilter = "verified";
+    expect(contactsStore.filteredContacts).toHaveLength(1);
+
+    // Block contact
+    await contactsStore.blockContact("fp-peer-alice-12345", true);
+    expect(contactsStore.contacts[0]?.isBlocked).toBe(true);
+
+    contactsStore.activeFilter = "blocked";
+    expect(contactsStore.filteredContacts).toHaveLength(1);
+
+    // Create Mesh Group
+    const group = await contactsStore.createGroup({
+      name: "Distributed Physics Mesh",
+      description: "P2P group",
+      initialMemberFingerprints: ["fp-peer-alice-12345"],
+    });
+    expect(group.name).toBe("Distributed Physics Mesh");
+    expect(group.memberFingerprints).toContain("fp-my-local-user");
+    expect(group.memberFingerprints).toContain("fp-peer-alice-12345");
+    expect(contactsStore.groups).toHaveLength(1);
+
+    // Parse QR payload
+    const parsed = contactsStore.parseQrPayload(
+      JSON.stringify({
+        v: 1,
+        fp: "fp-qr-scanned-777",
+        name: "Charlie",
+      }),
+    );
+    expect(parsed?.fingerprint).toBe("fp-qr-scanned-777");
+
+    // Delete contact
+    await contactsStore.deleteContact("fp-peer-alice-12345");
+    expect(contactsStore.contacts).toHaveLength(0);
   });
 });

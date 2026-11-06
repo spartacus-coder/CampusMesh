@@ -190,6 +190,42 @@ describe("@campusmesh/storage persistence suite", () => {
         pending = await storage.getPendingOutboxMessages();
         expect(pending).toHaveLength(0);
       });
+
+      it("should manage mesh group entities and contact deletion", async () => {
+        const contact = {
+          id: "c-1",
+          fingerprint: "fp-c1",
+          displayName: "Charlie",
+          safetyNumber: "1234 5678",
+          isVerified: false,
+          isBlocked: false,
+        };
+        await storage.saveContact(contact);
+        expect(await storage.getContactByFingerprint("fp-c1")).not.toBeNull();
+        await storage.deleteContact("c-1");
+        expect(await storage.getContactByFingerprint("fp-c1")).toBeNull();
+
+        const group = {
+          id: "grp-1",
+          name: "Study Group A",
+          ownerFingerprint: "fp-alice",
+          adminFingerprints: ["fp-alice"],
+          memberFingerprints: ["fp-alice", "fp-bob"],
+          maxMembers: 8,
+          createdAt: 1000,
+          updatedAt: 1000,
+        };
+        await storage.saveGroup(group);
+        const groups = await storage.getGroups();
+        expect(groups).toHaveLength(1);
+        expect(groups[0]?.name).toBe("Study Group A");
+
+        const retrieved = await storage.getGroup("grp-1");
+        expect(retrieved?.id).toBe("grp-1");
+
+        await storage.deleteGroup("grp-1");
+        expect(await storage.getGroup("grp-1")).toBeNull();
+      });
     });
   });
 });

@@ -73,17 +73,55 @@ export interface IdentityProfile {
 }
 
 /**
+ * Contact verification status.
+ */
+export enum ContactVerificationStatus {
+  UNVERIFIED = "UNVERIFIED",
+  VERIFIED = "VERIFIED",
+  MISMATCH = "MISMATCH",
+}
+
+/**
  * Contact record stored in local persistence.
  */
 export interface Contact {
   id: string;
   fingerprint: string;
   displayName: string;
-  avatarUrl?: string;
+  avatarUrl?: string | undefined;
   safetyNumber: string;
   isVerified: boolean;
+  verificationStatus?: ContactVerificationStatus | undefined;
   isBlocked: boolean;
-  lastSeen?: number;
+  ed25519PublicKey?: string | undefined;
+  x25519PublicKey?: string | undefined;
+  lastSeen?: number | undefined;
+  addedAt?: number | undefined;
+}
+
+/**
+ * Group member record.
+ */
+export interface GroupMember {
+  fingerprint: string;
+  role: GroupRole;
+  joinedAt: number;
+}
+
+/**
+ * Bounded mesh group definition (max 8 peers for zero-cost mesh).
+ */
+export interface MeshGroup {
+  id: string;
+  name: string;
+  description?: string | undefined;
+  avatarUrl?: string | undefined;
+  ownerFingerprint: string;
+  adminFingerprints: string[];
+  memberFingerprints: string[];
+  maxMembers: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 /**
