@@ -1,8 +1,8 @@
 # CampusMesh Implementation Status
 
-> **Current Phase:** Phase 7 — Offline Mailbox & Relay Protocol  
-> **Active Branch:** `feat/offline-mailbox` (Ready for PR #7 into `main`)  
-> **Last Updated:** Phase 7 Verified (98 passing tests across 26 suites)
+> **Current Phase:** Phase 8 — Cross-Platform Native Targets (Tauri 2 Windows & Capacitor 8 Android)  
+> **Active Branch:** `feat/cross-platform-targets` (Ready for PR #8 into `main`)  
+> **Last Updated:** Phase 8 Verified (105 passing tests across 28 suites)
 
 ---
 
@@ -22,8 +22,8 @@
 | **Direct E2EE Messaging**      | `packages/messaging`                   | Phase 4      | Completed             | Yes           | Verified & Merged (PR #4)          |
 | **Contact Book & Mesh Groups** | `packages/contacts`, `packages/groups` | Phase 5      | Completed             | Yes           | Verified & Merged (PR #5)          |
 | **Streaming File Transfer**    | `packages/file-transfer`               | Phase 6      | Completed             | Yes           | Verified & Merged (PR #6)          |
-| **Offline Sync & Mailbox**     | `packages/messaging`                   | Phase 7      | Completed             | Yes           | Verified (24h TTL, Backoff Retry)  |
-| **Desktop Application**        | `apps/desktop`                         | Phase 8      | Next                  | Pending       | Ready for implementation           |
-| **Android Application**        | `apps/mobile`                          | Phase 8      | Next                  | Pending       | Ready for implementation           |
-| **Voice & Video Calling**      | `packages/messaging`                   | Phase 9      | Not Started           | No            | Pending                            |
+| **Offline Sync & Mailbox**     | `packages/messaging`                   | Phase 7      | Completed             | Yes           | Verified & Merged (PR #7)          |
+| **Desktop Application**        | `apps/desktop`                         | Phase 8      | Completed             | Yes           | Verified (Tauri 2 NSIS + DeepLink) |
+| **Android Application**        | `apps/mobile`                          | Phase 8      | Completed             | Yes           | Verified (Capacitor 8 + Multicast) |
+| **Voice & Video Calling**      | `packages/messaging`                   | Phase 9      | Next                  | Pending       | Ready for implementation           |
 | **Decentralized Swarm R&D**    | `experiment/pear-hyperswarm`           | Phase 10     | Not Started           | No            | Pending                            |
