@@ -50,6 +50,7 @@ export function validateSignalingMessage(
 }
 
 export * from "./room-coordinator";
+export { RoomCoordinatorDO } from "./room-coordinator";
 export * from "./worker";
 import worker from "./worker";
 export default worker;

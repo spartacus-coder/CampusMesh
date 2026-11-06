@@ -268,3 +268,5 @@ export class RoomCoordinator {
     return this.sockets.size;
   }
 }
+
+export { RoomCoordinator as RoomCoordinatorDO };
