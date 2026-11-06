@@ -6,6 +6,8 @@ import { useChatStore } from "./chat";
 import { useIdentityStore } from "./identity";
 import { useContactsStore } from "./contacts";
 import { useFileTransferStore } from "./files";
+import { useCallStore } from "./call";
+import { CallState } from "@campusmesh/messaging";
 import { InMemoryStorageAdapter } from "@campusmesh/storage";
 import {
   SignalingState,
@@ -219,5 +221,55 @@ describe("Web Stores Suite", () => {
     await expect(
       fileStore.sendFile(oversizedFile, "conv_alice"),
     ).rejects.toThrow(/maximum direct P2P size limit/);
+  });
+
+  it("call store should manage 1-to-1 WebRTC audio/video call lifecycle", async () => {
+    const callStore = useCallStore();
+    expect(callStore.callState).toBe(CallState.IDLE);
+    expect(callStore.isCallActive).toBe(false);
+
+    // Start outgoing call
+    await callStore.startCall("fp-peer-bob", "Bob", "VIDEO");
+    expect(callStore.callState).toBe(CallState.OUTGOING_RINGING);
+    expect(callStore.peerFingerprint).toBe("fp-peer-bob");
+    expect(callStore.peerName).toBe("Bob");
+    expect(callStore.callType).toBe("VIDEO");
+    expect(callStore.isCallActive).toBe(true);
+
+    // Toggle mute
+    expect(callStore.isAudioMuted).toBe(false);
+    callStore.toggleAudio();
+    expect(callStore.isAudioMuted).toBe(true);
+
+    expect(callStore.isVideoMuted).toBe(false);
+    callStore.toggleVideo();
+    expect(callStore.isVideoMuted).toBe(true);
+
+    // End call
+    callStore.endCall();
+    expect(callStore.callState).toBe(CallState.IDLE);
+    expect(callStore.isCallActive).toBe(false);
+
+    // Incoming call offer
+    callStore.receiveSignal(
+      {
+        type: "call_offer",
+        callId: "call-inc-1",
+        callType: "AUDIO",
+        callerFingerprint: "fp-alice",
+        recipientFingerprint: "me",
+      },
+      "Alice",
+    );
+    expect(callStore.callState).toBe(CallState.INCOMING_RINGING);
+    expect(callStore.peerName).toBe("Alice");
+
+    // Accept incoming call
+    await callStore.acceptCall();
+    expect(callStore.callState).toBe(CallState.CONNECTED);
+    expect(callStore.isCallActive).toBe(true);
+
+    callStore.endCall();
+    expect(callStore.callState).toBe(CallState.IDLE);
   });
 });

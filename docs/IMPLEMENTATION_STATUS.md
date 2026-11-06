@@ -1,8 +1,8 @@
 # CampusMesh Implementation Status
 
-> **Current Phase:** Phase 8 — Cross-Platform Native Targets (Tauri 2 Windows & Capacitor 8 Android)  
-> **Active Branch:** `feat/cross-platform-targets` (Ready for PR #8 into `main`)  
-> **Last Updated:** Phase 8 Verified (105 passing tests across 28 suites)
+> **Current Phase:** Phase 9 — 1-to-1 WebRTC Voice & Video Calling  
+> **Active Branch:** `feat/webrtc-calling` (Ready for PR #9 into `main`)  
+> **Last Updated:** Phase 9 Verified (111 passing tests across 29 suites)
 
 ---
 
@@ -23,7 +23,7 @@
 | **Contact Book & Mesh Groups** | `packages/contacts`, `packages/groups` | Phase 5      | Completed             | Yes           | Verified & Merged (PR #5)          |
 | **Streaming File Transfer**    | `packages/file-transfer`               | Phase 6      | Completed             | Yes           | Verified & Merged (PR #6)          |
 | **Offline Sync & Mailbox**     | `packages/messaging`                   | Phase 7      | Completed             | Yes           | Verified & Merged (PR #7)          |
-| **Desktop Application**        | `apps/desktop`                         | Phase 8      | Completed             | Yes           | Verified (Tauri 2 NSIS + DeepLink) |
-| **Android Application**        | `apps/mobile`                          | Phase 8      | Completed             | Yes           | Verified (Capacitor 8 + Multicast) |
-| **Voice & Video Calling**      | `packages/messaging`                   | Phase 9      | Next                  | Pending       | Ready for implementation           |
-| **Decentralized Swarm R&D**    | `experiment/pear-hyperswarm`           | Phase 10     | Not Started           | No            | Pending                            |
+| **Desktop Application**        | `apps/desktop`                         | Phase 8      | Completed             | Yes           | Verified & Merged (PR #8)          |
+| **Android Application**        | `apps/mobile`                          | Phase 8      | Completed             | Yes           | Verified & Merged (PR #8)          |
+| **Voice & Video Calling**      | `packages/messaging`                   | Phase 9      | Completed             | Yes           | Verified (1-to-1 WebRTC Calls)     |
+| **Decentralized Swarm R&D**    | `experiment/pear-hyperswarm`           | Phase 10     | Next                  | Pending       | Ready for evaluation report        |

@@ -17,6 +17,8 @@ import {
   FileText,
   Download,
   Image as ImageIcon,
+  Phone,
+  Video,
 } from "lucide-vue-next";
 import {
   Avatar,
@@ -29,14 +31,18 @@ import {
 import { DeliveryState, MessageType } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
+import ActiveCallModal from "../components/ActiveCallModal.vue";
+import IncomingCallModal from "../components/IncomingCallModal.vue";
 import {
   useFileTransferStore,
   type StoredAttachmentPayload,
 } from "../stores/files";
+import { useCallStore } from "../stores/call";
 
 const chatStore = useChatStore();
 const networkStore = useNetworkStore();
 const fileTransferStore = useFileTransferStore();
+const callStore = useCallStore();
 
 const inputText = ref("");
 const isDetailsOpen = ref(false);
@@ -116,6 +122,24 @@ async function handleFileSelected(event: Event) {
     }
   }
 }
+
+function handleStartVoiceCall() {
+  if (!activeConversation.value?.peerFingerprint) return;
+  callStore.startCall(
+    activeConversation.value.peerFingerprint,
+    activeConversation.value.name,
+    "AUDIO",
+  );
+}
+
+function handleStartVideoCall() {
+  if (!activeConversation.value?.peerFingerprint) return;
+  callStore.startCall(
+    activeConversation.value.peerFingerprint,
+    activeConversation.value.name,
+    "VIDEO",
+  );
+}
 </script>
 
 <template>
@@ -176,6 +200,30 @@ async function handleFileSelected(event: Event) {
 
         <!-- Header Actions -->
         <div class="flex items-center gap-1">
+          <!-- Voice Call (1-to-1 direct) -->
+          <Button
+            v-if="!activeConversation.isGroup"
+            variant="ghost"
+            size="iconSm"
+            title="Start P2P Voice Call"
+            class="text-textSecondary hover:text-emerald-500"
+            @click="handleStartVoiceCall"
+          >
+            <Phone class="h-4 w-4" />
+          </Button>
+
+          <!-- Video Call (1-to-1 direct) -->
+          <Button
+            v-if="!activeConversation.isGroup"
+            variant="ghost"
+            size="iconSm"
+            title="Start P2P Video Call"
+            class="text-textSecondary hover:text-emerald-500"
+            @click="handleStartVideoCall"
+          >
+            <Video class="h-4 w-4" />
+          </Button>
+
           <Button
             variant="ghost"
             size="iconSm"
@@ -481,5 +529,7 @@ async function handleFileSelected(event: Event) {
       v-if="showManualSignalModal"
       @close="showManualSignalModal = false"
     />
+    <ActiveCallModal />
+    <IncomingCallModal />
   </div>
 </template>
