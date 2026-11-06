@@ -54,9 +54,9 @@ export class ContactManager {
         const parsed = JSON.parse(trimmed) as Record<string, unknown>;
         const fp = (parsed.fingerprint ?? parsed.fp) as string | undefined;
         const name = (parsed.displayName ?? parsed.name ?? "Peer") as string;
-        const ed = (parsed.ed25519PublicKey ?? parsed.ed25519) as
+        const ed = (parsed.ed25519PublicKey ?? parsed.ed25519 ?? parsed.edPk) as
           string | undefined;
-        const x = (parsed.x25519PublicKey ?? parsed.x25519) as
+        const x = (parsed.x25519PublicKey ?? parsed.x25519 ?? parsed.xPk) as
           string | undefined;
 
         if (fp && typeof fp === "string" && fp.length >= 8) {
@@ -72,7 +72,7 @@ export class ContactManager {
       }
     }
 
-    // 2. Check for URL schema: campusmesh://invite?fp=... or https://...?fp=...
+    // 2. Check for URL schema: campusmesh://identity?... or campusmesh://invite?... or https://...?fp=...
     if (
       trimmed.startsWith("campusmesh:") ||
       trimmed.startsWith("http://") ||
@@ -87,10 +87,12 @@ export class ContactManager {
           url.searchParams.get("displayName") ||
           "Peer";
         const ed =
+          url.searchParams.get("edPk") ||
           url.searchParams.get("ed") ||
           url.searchParams.get("ed25519PublicKey") ||
           undefined;
         const x =
+          url.searchParams.get("xPk") ||
           url.searchParams.get("x") ||
           url.searchParams.get("x25519PublicKey") ||
           undefined;
@@ -98,7 +100,7 @@ export class ContactManager {
         if (fp && fp.length >= 8) {
           return {
             fingerprint: fp,
-            displayName: name,
+            displayName: decodeURIComponent(name),
             ...(ed ? { ed25519PublicKey: ed } : {}),
             ...(x ? { x25519PublicKey: x } : {}),
           };
@@ -114,9 +116,17 @@ export class ContactManager {
       if (fp.length >= 8) {
         return {
           fingerprint: fp,
-          displayName: `Peer (${fp.slice(0, 6)})`,
+          displayName: `Peer (${fp.slice(0, 8)})`,
         };
       }
+    }
+
+    // 4. Raw fingerprint format: fp_... or bare hex/base64 (8 to 128 characters)
+    if (trimmed.startsWith("fp_") || /^[a-zA-Z0-9_-]{8,128}$/.test(trimmed)) {
+      return {
+        fingerprint: trimmed,
+        displayName: `Peer (${trimmed.slice(0, 8)})`,
+      };
     }
 
     return null;

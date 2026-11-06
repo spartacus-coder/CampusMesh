@@ -3,7 +3,7 @@ import { ref, onMounted } from "vue";
 import QRCode from "qrcode";
 import { useIdentityStore } from "../stores/identity";
 import { Button } from "@campusmesh/ui";
-import { QrCode, Copy, Check, X, ShieldCheck } from "lucide-vue-next";
+import { QrCode, Copy, Check, X, ShieldCheck, Share2 } from "lucide-vue-next";
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -11,7 +11,9 @@ const emit = defineEmits<{
 
 const identityStore = useIdentityStore();
 const qrDataUrl = ref<string>("");
+const inviteUri = ref<string>("");
 const isCopied = ref(false);
+const isLinkCopied = ref(false);
 
 onMounted(async () => {
   if (identityStore.identity) {
@@ -19,6 +21,7 @@ onMounted(async () => {
     const uri = `campusmesh://identity?v=1&name=${encodeURIComponent(
       payload.name,
     )}&fp=${payload.fp}&edPk=${payload.edPk}&xPk=${payload.xPk}`;
+    inviteUri.value = uri;
     try {
       qrDataUrl.value = await QRCode.toDataURL(uri, {
         errorCorrectionLevel: "M",
@@ -41,6 +44,16 @@ function copyFingerprint() {
     isCopied.value = true;
     setTimeout(() => {
       isCopied.value = false;
+    }, 2000);
+  }
+}
+
+function copyInviteLink() {
+  if (inviteUri.value) {
+    navigator.clipboard.writeText(inviteUri.value);
+    isLinkCopied.value = true;
+    setTimeout(() => {
+      isLinkCopied.value = false;
     }, 2000);
   }
 }
@@ -97,7 +110,31 @@ function copyFingerprint() {
           </div>
         </div>
 
-        <!-- Fingerprint -->
+        <!-- Quick Actions: Share Invite Link or Copy Fingerprint -->
+        <div class="flex items-center gap-2 w-full">
+          <Button
+            variant="outline"
+            size="sm"
+            class="flex-1 text-xs gap-1.5 h-9"
+            @click="copyInviteLink"
+          >
+            <Check v-if="isLinkCopied" class="h-3.5 w-3.5 text-success" />
+            <Share2 v-else class="h-3.5 w-3.5 text-primary" />
+            <span>{{ isLinkCopied ? "Link Copied!" : "Copy Invite Link" }}</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            class="flex-1 text-xs gap-1.5 h-9"
+            @click="copyFingerprint"
+          >
+            <Check v-if="isCopied" class="h-3.5 w-3.5 text-success" />
+            <Copy v-else class="h-3.5 w-3.5 text-primary" />
+            <span>{{ isCopied ? "FP Copied!" : "Copy Fingerprint" }}</span>
+          </Button>
+        </div>
+
+        <!-- Fingerprint display box -->
         <div
           class="w-full bg-surface-subtle p-3 rounded-xl border border-borderSubtle text-left"
         >
@@ -107,14 +144,6 @@ function copyFingerprint() {
             >
               Safety Fingerprint
             </span>
-            <button
-              class="text-xs text-primary hover:underline flex items-center gap-1"
-              @click="copyFingerprint"
-            >
-              <Check v-if="isCopied" class="h-3.5 w-3.5 text-success" />
-              <Copy v-else class="h-3.5 w-3.5" />
-              <span>{{ isCopied ? "Copied" : "Copy" }}</span>
-            </button>
           </div>
           <div
             class="font-mono text-xs text-textPrimary break-all select-all leading-relaxed"
@@ -122,6 +151,10 @@ function copyFingerprint() {
             {{ identityStore.formattedSafetyFingerprint }}
           </div>
         </div>
+
+        <p class="text-[11px] text-textMuted leading-relaxed">
+          Peers can scan this QR code using their camera or paste your invite link into Add Contact to establish an encrypted session.
+        </p>
       </div>
 
       <Button variant="secondary" class="w-full" @click="emit('close')">
