@@ -9,12 +9,18 @@ export interface SignalingFrame {
     | "leave"
     | "ping"
     | "pong"
+    | "room_peers"
+    | "chat_message"
+    | "mailbox_deposit"
+    | "mailbox_fetch"
+    | "mailbox_deliver"
     | "error";
   senderFingerprint: string;
   targetFingerprint?: string;
   roomId?: string;
   data?: unknown;
   error?: string;
+  mailboxMessages?: unknown[];
 }
 
 export interface SignalingClientOptions {
@@ -46,6 +52,9 @@ export class SignalingClient {
   ) => void;
   public onPeerJoined?: (peerFingerprint: string) => void;
   public onPeerLeft?: (peerFingerprint: string) => void;
+  public onRoomPeers?: (peers: string[]) => void;
+  public onChatMessage?: (senderFingerprint: string, data: unknown) => void;
+  public onMailboxMessages?: (messages: unknown[]) => void;
   public onStateChange?: (state: SignalingState) => void;
 
   constructor(private options: SignalingClientOptions = {}) {}
@@ -185,6 +194,26 @@ export class SignalingClient {
       case "leave":
         this.onPeerLeft?.(frame.senderFingerprint);
         break;
+      case "room_peers":
+        if (
+          frame.data &&
+          typeof frame.data === "object" &&
+          "peers" in (frame.data as Record<string, unknown>)
+        ) {
+          const peers = (frame.data as { peers: string[] }).peers;
+          this.onRoomPeers?.(peers);
+        }
+        break;
+      case "chat_message":
+        if (frame.data) {
+          this.onChatMessage?.(frame.senderFingerprint, frame.data);
+        }
+        break;
+      case "mailbox_deliver":
+        if (frame.mailboxMessages) {
+          this.onMailboxMessages?.(frame.mailboxMessages);
+        }
+        break;
       case "ping":
         this.sendFrame({
           type: "pong",
@@ -285,6 +314,26 @@ export class SignalingClient {
       targetFingerprint,
       roomId: this.roomId,
       data: candidate,
+    });
+  }
+
+  public sendChatMessage(targetFingerprint: string, data: unknown) {
+    if (!this.localFingerprint || !this.roomId) return;
+    this.sendFrame({
+      type: "chat_message",
+      senderFingerprint: this.localFingerprint,
+      targetFingerprint,
+      roomId: this.roomId,
+      data,
+    });
+  }
+
+  public fetchMailbox() {
+    if (!this.localFingerprint || !this.roomId) return;
+    this.sendFrame({
+      type: "mailbox_fetch",
+      senderFingerprint: this.localFingerprint,
+      roomId: this.roomId,
     });
   }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useThemeStore } from "../stores/theme";
 import { useNetworkStore } from "../stores/network";
@@ -34,6 +34,10 @@ const chatStore = useChatStore();
 
 const isCommandPaletteOpen = ref(false);
 const searchQuery = ref("");
+
+const isInsideMobileChat = computed(() => {
+  return route.path === "/" && chatStore.activeConversationId !== null;
+});
 
 const navItems = [
   { id: "chats", label: "Chats", icon: MessageSquare, path: "/" },
@@ -212,8 +216,9 @@ function handleNavigate(path: string) {
       </main>
     </div>
 
-    <!-- Mobile-First Bottom Navigation Bar (Hidden on desktop) -->
+    <!-- Mobile-First Bottom Navigation Bar (Hidden on desktop and inside active mobile chat) -->
     <nav
+      v-if="!isInsideMobileChat"
       class="md:hidden flex h-14 border-t border-border bg-surface items-center justify-around px-2 z-30 shrink-0 pb-[env(safe-area-inset-bottom)]"
       aria-label="Mobile Bottom Navigation"
     >

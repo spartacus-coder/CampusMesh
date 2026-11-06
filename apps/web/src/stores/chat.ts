@@ -9,7 +9,7 @@ import {
 import type { StoredMessage } from "@campusmesh/storage";
 
 export const useChatStore = defineStore("chat", () => {
-  const activeConversationId = ref<string | null>("conv_alice");
+  const activeConversationId = ref<string | null>(null);
   const conversations = ref<Conversation[]>([
     {
       id: "conv_alice",

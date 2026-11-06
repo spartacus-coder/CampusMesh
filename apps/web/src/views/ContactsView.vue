@@ -78,50 +78,52 @@ function startChatWithContact(contact: Contact) {
   <div class="flex-1 flex flex-col h-full overflow-hidden bg-background">
     <!-- Header -->
     <header
-      class="flex h-16 items-center justify-between border-b border-border bg-surface px-6 shrink-0"
+      class="flex h-14 sm:h-16 items-center justify-between border-b border-border bg-surface px-4 sm:px-6 shrink-0"
     >
-      <div class="flex items-center gap-3">
-        <h1 class="text-base font-bold text-textPrimary tracking-tight">
-          Contacts & Identities
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+        <h1 class="text-sm sm:text-base font-bold text-textPrimary tracking-tight truncate">
+          Contacts
         </h1>
-        <Badge variant="outline" class="text-xs font-mono">
-          {{ contactsStore.contacts.length }} Contacts
+        <Badge variant="outline" class="text-[10px] sm:text-xs font-mono shrink-0">
+          {{ contactsStore.contacts.length }}
         </Badge>
       </div>
 
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <Button
           variant="outline"
           size="sm"
-          class="gap-1.5"
+          class="gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs"
+          title="New Mesh Group"
           @click="contactsStore.isCreateGroupOpen = true"
         >
-          <Users class="h-4 w-4 text-primary" />
-          <span>New Mesh Group</span>
+          <Users class="h-3.5 w-3.5 text-primary" />
+          <span class="hidden md:inline">Group</span>
         </Button>
         <Button
           variant="outline"
           size="sm"
-          class="gap-1.5"
+          class="gap-1 sm:gap-1.5 h-8 px-2 sm:px-3 text-xs"
+          title="My QR Identity Card"
           @click="isQrCardOpen = true"
         >
-          <QrCode class="h-4 w-4 text-primary" />
-          <span>My QR Card</span>
+          <QrCode class="h-3.5 w-3.5 text-primary" />
+          <span class="hidden sm:inline">My QR</span>
         </Button>
         <Button
           variant="default"
           size="sm"
-          class="gap-1.5"
+          class="gap-1 sm:gap-1.5 h-8 px-2.5 sm:px-3 text-xs"
           @click="contactsStore.isAddContactOpen = true"
         >
-          <UserPlus class="h-4 w-4" />
+          <UserPlus class="h-3.5 w-3.5" />
           <span>Add Contact</span>
         </Button>
       </div>
     </header>
 
     <!-- Search & Filter Controls -->
-    <div class="p-6 pb-2 max-w-4xl mx-auto w-full flex flex-col gap-3">
+    <div class="p-4 sm:p-6 pb-2 max-w-4xl mx-auto w-full flex flex-col gap-3">
       <div class="flex items-center gap-3">
         <div class="relative flex-1">
           <Search class="absolute left-3 top-3 h-4 w-4 text-textMuted" />
@@ -175,7 +177,7 @@ function startChatWithContact(contact: Contact) {
     </div>
 
     <!-- Contact List -->
-    <div class="flex-1 overflow-y-auto p-6 max-w-4xl mx-auto w-full space-y-3">
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-2.5">
       <!-- Empty State -->
       <div
         v-if="contactsStore.filteredContacts.length === 0"
@@ -209,47 +211,48 @@ function startChatWithContact(contact: Contact) {
       <div
         v-for="contact in contactsStore.filteredContacts"
         :key="contact.id"
-        class="flex items-center justify-between p-4 rounded-xl border border-border bg-surface hover:border-primary/40 transition-colors shadow-xs"
+        class="flex items-center justify-between p-3 sm:p-4 rounded-xl border border-border bg-surface hover:border-primary/40 transition-colors shadow-xs gap-2"
       >
-        <div class="flex items-center gap-4 min-w-0">
+        <div class="flex items-center gap-3 min-w-0">
           <Avatar
             :name="contact.displayName"
-            size="lg"
+            size="md"
+            class="shrink-0"
             :is-online="contact.isVerified"
           />
           <div class="min-w-0">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1.5 flex-wrap">
               <span class="text-sm font-bold text-textPrimary truncate">{{
                 contact.displayName
               }}</span>
               <Badge
                 v-if="contact.isVerified"
                 variant="success"
-                class="text-[10px] gap-1 px-1.5 py-0.5 cursor-pointer hover:opacity-80"
+                class="text-[9px] gap-1 px-1.5 py-0.5 cursor-pointer hover:opacity-80"
                 @click="openSafetyVerification(contact)"
               >
-                <ShieldCheck class="h-3 w-3" />
+                <ShieldCheck class="h-2.5 w-2.5" />
                 Verified
               </Badge>
               <Badge
                 v-else
                 variant="outline"
-                class="text-[10px] gap-1 px-1.5 py-0.5 cursor-pointer hover:border-amber-400 text-amber-400"
+                class="text-[9px] gap-1 px-1.5 py-0.5 cursor-pointer hover:border-amber-400 text-amber-400"
                 @click="openSafetyVerification(contact)"
               >
-                <ShieldAlert class="h-3 w-3" />
+                <ShieldAlert class="h-2.5 w-2.5" />
                 Unverified
               </Badge>
               <Badge
                 v-if="contact.isBlocked"
                 variant="destructive"
-                class="text-[10px] px-1.5 py-0.5"
+                class="text-[9px] px-1.5 py-0.5"
               >
                 Blocked
               </Badge>
             </div>
             <p
-              class="font-mono text-xs text-textMuted truncate mt-0.5 cursor-pointer hover:text-primary transition-colors"
+              class="font-mono text-[11px] text-textMuted truncate mt-0.5 cursor-pointer hover:text-primary transition-colors"
               title="Click to verify safety number"
               @click="openSafetyVerification(contact)"
             >
@@ -259,22 +262,12 @@ function startChatWithContact(contact: Contact) {
         </div>
 
         <!-- Action Buttons -->
-        <div class="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            class="gap-1 text-xs"
-            @click="openSafetyVerification(contact)"
-          >
-            <ShieldCheck class="h-3.5 w-3.5 text-primary" />
-            <span class="hidden sm:inline">Verify</span>
-          </Button>
-
+        <div class="flex items-center gap-1 shrink-0">
           <Button
             v-if="!contact.isBlocked"
             variant="default"
             size="sm"
-            class="gap-1 text-xs"
+            class="gap-1 h-8 px-2.5 text-xs font-semibold"
             @click="startChatWithContact(contact)"
           >
             <MessageSquare class="h-3.5 w-3.5" />
@@ -282,23 +275,34 @@ function startChatWithContact(contact: Contact) {
           </Button>
 
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            class="p-2 text-textMuted hover:text-amber-400 hover:bg-amber-400/10"
-            :title="contact.isBlocked ? 'Unblock Contact' : 'Block Contact'"
-            @click="toggleBlock(contact)"
+            class="gap-1 h-8 px-2 text-xs"
+            title="Verify Safety Number"
+            @click="openSafetyVerification(contact)"
           >
-            <Ban class="h-4 w-4" />
+            <ShieldCheck class="h-3.5 w-3.5 text-primary" />
+            <span class="hidden md:inline">Verify</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
-            class="p-2 text-textMuted hover:text-red-400 hover:bg-red-400/10"
+            class="h-8 w-8 p-0 text-textMuted hover:text-amber-400 hover:bg-amber-400/10"
+            :title="contact.isBlocked ? 'Unblock Contact' : 'Block Contact'"
+            @click="toggleBlock(contact)"
+          >
+            <Ban class="h-3.5 w-3.5" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-8 w-8 p-0 text-textMuted hover:text-red-400 hover:bg-red-400/10"
             title="Delete Contact"
             @click="removeContact(contact)"
           >
-            <Trash2 class="h-4 w-4" />
+            <Trash2 class="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>

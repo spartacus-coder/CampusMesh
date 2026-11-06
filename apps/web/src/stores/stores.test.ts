@@ -60,6 +60,9 @@ describe("Web Stores Suite", () => {
   it("chat store should handle conversation selection, message appending, and state update", () => {
     const chatStore = useChatStore();
     expect(chatStore.conversations.length).toBeGreaterThan(0);
+    expect(chatStore.activeConversationId).toBeNull();
+
+    chatStore.selectConversation("conv_alice");
     expect(chatStore.activeConversationId).toBe("conv_alice");
     expect(chatStore.activeMessages.length).toBeGreaterThan(0);
 
@@ -189,6 +192,8 @@ describe("Web Stores Suite", () => {
       type: "application/pdf",
       arrayBuffer: () => Promise.resolve(fileContent.buffer),
     } as unknown as File;
+
+    chatStore.selectConversation("conv_alice");
 
     const metadata = await fileStore.sendFile(
       mockFile,

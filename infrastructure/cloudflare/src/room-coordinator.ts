@@ -82,6 +82,24 @@ export class RoomCoordinator {
 
     this.sockets.set(fingerprint, server);
 
+    // Immediately inform the joining client of existing peers in the room
+    const existingPeers = Array.from(this.sockets.keys()).filter(
+      (fp) => fp !== fingerprint,
+    );
+    if (existingPeers.length > 0) {
+      try {
+        server.send(
+          JSON.stringify({
+            type: "room_peers",
+            senderFingerprint: "server",
+            data: { peers: existingPeers },
+          }),
+        );
+      } catch {
+        // Ignore initial send failure
+      }
+    }
+
     // Schedule cleanup alarm (15 minutes from now)
     if (this.state?.storage?.setAlarm) {
       const expiration =
@@ -136,37 +154,25 @@ export class RoomCoordinator {
       return;
     }
 
+    if (msg.type === "chat_message") {
+      if (!msg.targetFingerprint) return;
+      const targetSocket = this.sockets.get(msg.targetFingerprint);
+      if (targetSocket && targetSocket.readyState === 1) {
+        targetSocket.send(
+          JSON.stringify({
+            ...msg,
+            senderFingerprint: senderFp,
+          }),
+        );
+      } else {
+        this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+      }
+      return;
+    }
+
     if (msg.type === "mailbox_deposit") {
       if (!msg.targetFingerprint) return;
-      this.purgeExpiredMailbox();
-
-      if (this.mailbox.size >= SIGNALING_LIMITS.MAX_MAILBOX_MESSAGES_PER_ROOM) {
-        const socket = this.sockets.get(senderFp);
-        if (socket && socket.readyState === 1) {
-          socket.send(
-            JSON.stringify({
-              type: "mailbox_deliver",
-              senderFingerprint: "server",
-              data: { error: "MAILBOX_CAPACITY_EXCEEDED" },
-            }),
-          );
-        }
-        return;
-      }
-
-      const id = `mbx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const now = Date.now();
-      const record: MailboxRecord = {
-        id,
-        recipientFingerprint: msg.targetFingerprint,
-        senderFingerprint: senderFp,
-        envelope:
-          typeof msg.data === "string" ? msg.data : JSON.stringify(msg.data),
-        createdAt: now,
-        expiresAt: now + SIGNALING_LIMITS.MAILBOX_TTL_SECONDS * 1000,
-      };
-
-      this.mailbox.set(id, record);
+      this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
       return;
     }
 
@@ -234,6 +240,35 @@ export class RoomCoordinator {
         );
       }
     }
+  }
+
+  private depositMailbox(senderFp: string, targetFp: string, data: unknown) {
+    this.purgeExpiredMailbox();
+    if (this.mailbox.size >= SIGNALING_LIMITS.MAX_MAILBOX_MESSAGES_PER_ROOM) {
+      const socket = this.sockets.get(senderFp);
+      if (socket && socket.readyState === 1) {
+        socket.send(
+          JSON.stringify({
+            type: "mailbox_deliver",
+            senderFingerprint: "server",
+            data: { error: "MAILBOX_CAPACITY_EXCEEDED" },
+          }),
+        );
+      }
+      return;
+    }
+
+    const id = `mbx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = Date.now();
+    const record: MailboxRecord = {
+      id,
+      recipientFingerprint: targetFp,
+      senderFingerprint: senderFp,
+      envelope: typeof data === "string" ? data : JSON.stringify(data),
+      createdAt: now,
+      expiresAt: now + SIGNALING_LIMITS.MAILBOX_TTL_SECONDS * 1000,
+    };
+    this.mailbox.set(id, record);
   }
 
   public purgeExpiredMailbox(): number {

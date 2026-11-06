@@ -28,6 +28,8 @@ export interface SignalingRoomMessage {
     | "pong"
     | "join"
     | "leave"
+    | "room_peers"
+    | "chat_message"
     | "mailbox_deposit"
     | "mailbox_fetch"
     | "mailbox_deliver";

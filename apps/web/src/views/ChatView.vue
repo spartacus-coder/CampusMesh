@@ -20,6 +20,8 @@ import {
   Image as ImageIcon,
   Phone,
   Video,
+  Plus,
+  Search,
 } from "lucide-vue-next";
 import {
   Avatar,
@@ -50,12 +52,33 @@ const inputText = ref("");
 const isDetailsOpen = ref(false);
 const showManualSignalModal = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const mobileSearchQuery = ref("");
 
 const activeConversation = computed(() => {
   return chatStore.conversations.find(
     (c) => c.id === chatStore.activeConversationId,
   );
 });
+
+const filteredMobileConversations = computed(() => {
+  if (!mobileSearchQuery.value.trim()) {
+    return chatStore.conversations;
+  }
+  const q = mobileSearchQuery.value.toLowerCase().trim();
+  return chatStore.conversations.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      (c.lastMessagePreview && c.lastMessagePreview.toLowerCase().includes(q)),
+  );
+});
+
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+  return `${Math.floor(diff / 86400000)}d`;
+}
 
 watch(
   () => activeConversation.value?.peerFingerprint,
@@ -173,12 +196,94 @@ function handleStartVideoCall() {
 
 <template>
   <div v-if="!activeConversation" class="h-full w-full">
-    <EmptyState
-      title="No Conversation Selected"
-      description="Choose a conversation from the sidebar or start a new encrypted P2P session."
-      action-text="Browse Contacts"
-      @action="$router.push('/contacts')"
-    />
+    <!-- Desktop EmptyState -->
+    <div class="hidden md:flex h-full w-full items-center justify-center">
+      <EmptyState
+        title="No Conversation Selected"
+        description="Choose a conversation from the sidebar or start a new encrypted P2P session."
+        action-text="Browse Contacts"
+        @action="$router.push('/contacts')"
+      />
+    </div>
+
+    <!-- Mobile Conversation List -->
+    <div class="md:hidden flex flex-col h-full w-full bg-background overflow-hidden">
+      <!-- Mobile Header -->
+      <header
+        class="flex h-14 items-center justify-between border-b border-border bg-surface px-4 shrink-0"
+      >
+        <h1 class="text-base font-bold text-textPrimary tracking-tight">
+          Messages
+        </h1>
+        <Button
+          variant="default"
+          size="sm"
+          class="gap-1.5 h-8 px-2.5 text-xs font-semibold"
+          @click="$router.push('/contacts')"
+        >
+          <Plus class="h-3.5 w-3.5" />
+          <span>New Chat</span>
+        </Button>
+      </header>
+
+      <!-- Search Bar -->
+      <div class="p-3 border-b border-borderSubtle bg-surface/50">
+        <div class="relative">
+          <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-textMuted" />
+          <Input
+            v-model="mobileSearchQuery"
+            placeholder="Search conversations..."
+            class="pl-9 h-9 text-xs"
+          />
+        </div>
+      </div>
+
+      <!-- Conversations List -->
+      <div class="flex-1 overflow-y-auto p-2 space-y-1">
+        <div
+          v-for="conv in filteredMobileConversations"
+          :key="conv.id"
+          class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-hover active:bg-surface transition-colors border border-transparent hover:border-border"
+          @click="chatStore.selectConversation(conv.id)"
+        >
+          <Avatar :name="conv.name" size="md" :is-online="!conv.isGroup" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="text-sm font-semibold text-textPrimary truncate">{{
+                conv.name
+              }}</span>
+              <span v-if="conv.lastMessageTimestamp" class="text-[10px] text-textMuted">{{
+                formatRelativeTime(conv.lastMessageTimestamp)
+              }}</span>
+            </div>
+            <p class="text-xs text-textSecondary truncate">
+              {{ conv.lastMessagePreview }}
+            </p>
+          </div>
+          <Badge
+            v-if="conv.unreadCount > 0"
+            variant="default"
+            class="h-5 px-1.5 text-[10px]"
+          >
+            {{ conv.unreadCount }}
+          </Badge>
+        </div>
+
+        <div
+          v-if="filteredMobileConversations.length === 0"
+          class="flex flex-col items-center justify-center p-8 text-center"
+        >
+          <p class="text-xs text-textMuted mb-3">No conversations found</p>
+          <Button
+            size="sm"
+            variant="outline"
+            @click="$router.push('/contacts')"
+          >
+            Start a new chat
+          </Button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div v-else class="flex h-full w-full overflow-hidden relative">
@@ -442,7 +547,9 @@ function handleStartVideoCall() {
       </div>
 
       <!-- Message Composer Bar -->
-      <footer class="p-3 border-t border-border bg-surface shrink-0 z-10">
+      <footer
+        class="p-3 border-t border-border bg-surface shrink-0 z-10 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+      >
         <form
           class="flex items-center gap-2 max-w-4xl mx-auto"
           @submit.prevent="handleSendMessage"

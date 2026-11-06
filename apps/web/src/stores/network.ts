@@ -116,6 +116,62 @@ export const useNetworkStore = defineStore("network", () => {
         }
       };
 
+      signalingClient.onRoomPeers = async (peers) => {
+        for (const peerFp of peers) {
+          if (peerTransport) {
+            const offer = await peerTransport.createOffer(peerFp);
+            signalingClient?.sendOffer(peerFp, offer);
+          }
+        }
+      };
+
+      signalingClient.onChatMessage = (_senderFp, data) => {
+        try {
+          const msg = typeof data === "string" ? JSON.parse(data) : (data as Record<string, unknown>);
+          const chatStore = useChatStore();
+          chatStore.appendMessage({
+            id: (msg.id as string) || `m_${Date.now()}`,
+            conversationId: (msg.conversationId as string) || `conv-${msg.senderFingerprint}`,
+            senderFingerprint: (msg.senderFingerprint as string) || _senderFp,
+            recipientFingerprint: msg.recipientFingerprint as string | undefined,
+            content: (msg.content as string) || "",
+            contentType: (msg.contentType as MessageType) || MessageType.TEXT,
+            timestamp: (msg.timestamp as number) || Date.now(),
+            deliveryState: DeliveryState.DELIVERED,
+            isOutgoing: false,
+          });
+          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+            navigator.vibrate(40);
+          }
+        } catch (err) {
+          console.warn("Failed to process incoming signaling chat message:", err);
+        }
+      };
+
+      signalingClient.onMailboxMessages = (records) => {
+        const chatStore = useChatStore();
+        for (const rec of records) {
+          try {
+            const r = rec as { envelope?: string; senderFingerprint?: string };
+            if (!r.envelope) continue;
+            const msg = JSON.parse(r.envelope) as Record<string, unknown>;
+            chatStore.appendMessage({
+              id: (msg.id as string) || `m_${Date.now()}`,
+              conversationId: (msg.conversationId as string) || `conv-${msg.senderFingerprint || r.senderFingerprint}`,
+              senderFingerprint: (msg.senderFingerprint as string) || r.senderFingerprint || "peer",
+              recipientFingerprint: msg.recipientFingerprint as string | undefined,
+              content: (msg.content as string) || "",
+              contentType: (msg.contentType as MessageType) || MessageType.TEXT,
+              timestamp: (msg.timestamp as number) || Date.now(),
+              deliveryState: DeliveryState.DELIVERED,
+              isOutgoing: false,
+            });
+          } catch {
+            // Ignore malformed mailbox record
+          }
+        }
+      };
+
       signalingClient.onOffer = async (senderFp, offer) => {
         if (peerTransport) {
           const answer = await peerTransport.handleOffer(senderFp, offer);
@@ -142,6 +198,10 @@ export const useNetworkStore = defineStore("network", () => {
     activeRoomId.value = roomId;
     if (signalingClient) {
       await signalingClient.connect(roomId, localFingerprint);
+      // Retrieve any offline messages from room mailbox
+      setTimeout(() => {
+        signalingClient?.fetchMailbox();
+      }, 500);
     }
   }
 
@@ -244,6 +304,11 @@ export const useNetworkStore = defineStore("network", () => {
         "cm-messages",
         bytes,
       );
+    }
+
+    // Also transmit via signaling gateway to guarantee delivery over 4G/5G mobile carrier NAT
+    if (signalingClient && signalingState.value === SignalingState.CONNECTED) {
+      signalingClient.sendChatMessage(recipientFingerprint, payload);
     }
 
     const storedMsg: StoredMessage = {
