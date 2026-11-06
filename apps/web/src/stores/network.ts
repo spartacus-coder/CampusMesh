@@ -67,7 +67,9 @@ export const useNetworkStore = defineStore("network", () => {
     }
 
     if (!signalingClient) {
-      signalingClient = new SignalingClient();
+      signalingClient = new SignalingClient({
+        serverUrl: import.meta.env.VITE_SIGNALING_URL,
+      });
       signalingClient.onStateChange = (state) => {
         signalingState.value = state;
         if (state === SignalingState.UNAVAILABLE_QUOTA) {
