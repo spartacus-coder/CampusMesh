@@ -3,9 +3,11 @@ import { setActivePinia, createPinia } from "pinia";
 import { useThemeStore } from "./theme";
 import { useNetworkStore } from "./network";
 import { useChatStore } from "./chat";
+import { useIdentityStore } from "./identity";
+import { InMemoryStorageAdapter } from "@campusmesh/storage";
 import { SignalingState, PeerConnectionState } from "@campusmesh/shared-types";
 
-describe("Web Stores (Phase 1)", () => {
+describe("Web Stores Suite", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -51,5 +53,34 @@ describe("Web Stores (Phase 1)", () => {
     chatStore.selectConversation("conv_alice");
     expect(chatStore.activeConversationId).toBe("conv_alice");
     expect(convAlice?.unreadCount).toBe(0);
+  });
+
+  it("identity store should manage cryptographic identity lifecycle", async () => {
+    const identityStore = useIdentityStore();
+    // Inject clean in-memory adapter for test isolation
+    identityStore.setStorageAdapter(new InMemoryStorageAdapter());
+
+    await identityStore.checkInitialization();
+    expect(identityStore.isInitialized).toBe(false);
+    expect(identityStore.isUnlocked).toBe(false);
+
+    // Create identity
+    const { identity, mnemonic } = await identityStore.createIdentity(
+      "Test Scholar",
+      "TestPassword123!",
+    );
+    expect(identity.displayName).toBe("Test Scholar");
+    expect(mnemonic.split(" ")).toHaveLength(24);
+    expect(identityStore.isInitialized).toBe(true);
+    expect(identityStore.isUnlocked).toBe(true);
+    expect(identityStore.formattedSafetyFingerprint).toBeTruthy();
+
+    // Lock
+    identityStore.lock();
+    expect(identityStore.isUnlocked).toBe(false);
+
+    // Unlock
+    await identityStore.unlock("TestPassword123!");
+    expect(identityStore.isUnlocked).toBe(true);
   });
 });

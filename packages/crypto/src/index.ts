@@ -1,14 +1,14 @@
 /**
  * @campusmesh/crypto
- * Cryptographic engine interface and domain separation constants.
+ * Cryptographic engine, BIP-39 recovery, domain separation, Ed25519/X25519, and encrypted keystores.
  */
 
-export const DOMAIN_STRINGS = {
-  IDENTITY_ED25519: "CampusMesh-Ed25519-IdentityKey-v1",
-  IDENTITY_X25519: "CampusMesh-X25519-SignedPreKey-v1",
-  DEVICE_BINDING: "CampusMesh-Device-Binding-v1",
-  ONE_TIME_PREKEY: "CampusMesh-OneTimePreKey-Batch-v1",
-} as const;
+export * from "./bip39";
+export * from "./kdf";
+export * from "./ed25519";
+export * from "./x25519";
+export * from "./fingerprint";
+export * from "./keystore";
 
 export interface ICryptoEngine {
   generateRandomBytes(length: number): Uint8Array;
