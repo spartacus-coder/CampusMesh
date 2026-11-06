@@ -13,6 +13,7 @@ import {
   CheckCheck,
   Clock,
   ShieldCheck,
+  Radio,
 } from "lucide-vue-next";
 import {
   Avatar,
@@ -23,12 +24,14 @@ import {
   ConnectionStatusBar,
 } from "@campusmesh/ui";
 import { DeliveryState } from "@campusmesh/shared-types";
+import ManualSignalingModal from "../components/ManualSignalingModal.vue";
 
 const chatStore = useChatStore();
 const networkStore = useNetworkStore();
 
 const inputText = ref("");
 const isDetailsOpen = ref(false);
+const showManualSignalModal = ref(false);
 
 const activeConversation = computed(() => {
   return chatStore.conversations.find(
@@ -149,6 +152,16 @@ function handleSendMessage() {
 
         <!-- Header Actions -->
         <div class="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="iconSm"
+            title="Manual P2P Connect (Offline / Air-Gapped)"
+            class="text-textSecondary hover:text-primary"
+            @click="showManualSignalModal = true"
+          >
+            <Radio class="h-4 w-4" />
+          </Button>
+
           <Button
             variant="ghost"
             size="iconSm"
@@ -337,5 +350,10 @@ function handleSendMessage() {
         </div>
       </div>
     </aside>
+
+    <ManualSignalingModal
+      v-if="showManualSignalModal"
+      @close="showManualSignalModal = false"
+    />
   </div>
 </template>

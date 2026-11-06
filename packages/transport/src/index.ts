@@ -1,9 +1,14 @@
-import type { PeerConnectionState } from "@campusmesh/shared-types";
+/**
+ * @campusmesh/transport
+ * WebRTC DataChannels, STUN peer connection engine, manual Base45 signaling, and serverless signaling client.
+ */
 
-export const DEFAULT_STUN_SERVERS = [
-  "stun:stun.cloudflare.com:3478",
-  "stun:stun.l.google.com:19302",
-] as const;
+export * from "./base45";
+export * from "./manual-signaling";
+export * from "./signaling-client";
+export * from "./webrtc-transport";
+
+import type { PeerConnectionState } from "@campusmesh/shared-types";
 
 export interface ITransportAdapter {
   connect(peerId: string): Promise<void>;

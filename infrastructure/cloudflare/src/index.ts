@@ -9,7 +9,7 @@ export const SIGNALING_LIMITS = {
 } as const;
 
 export interface SignalingRoomMessage {
-  type: "offer" | "answer" | "candidate" | "ping" | "pong";
+  type: "offer" | "answer" | "candidate" | "ping" | "pong" | "join" | "leave";
   senderFingerprint: string;
   targetFingerprint?: string;
   data?: unknown;
@@ -25,3 +25,8 @@ export function validateSignalingMessage(
     typeof cast["senderFingerprint"] === "string"
   );
 }
+
+export * from "./room-coordinator";
+export * from "./worker";
+import worker from "./worker";
+export default worker;

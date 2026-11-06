@@ -39,6 +39,13 @@ describe("Web Stores Suite", () => {
 
     networkStore.setDirectLan(true);
     expect(networkStore.isDirectLan).toBe(true);
+
+    expect(networkStore.isQuotaAlertDismissed).toBe(false);
+    networkStore.dismissQuotaAlert();
+    expect(networkStore.isQuotaAlertDismissed).toBe(true);
+
+    networkStore.disconnectSignaling();
+    expect(networkStore.activeRoomId).toBeNull();
   });
 
   it("chat store should handle conversation selection and clear unread counts", () => {
