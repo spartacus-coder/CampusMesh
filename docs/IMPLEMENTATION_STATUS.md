@@ -1,8 +1,8 @@
 # CampusMesh Implementation Status
 
-> **Current Phase:** Phase 1 — Web Application Shell & Premium Design System  
-> **Active Branch:** `feat/web-pwa-foundation`  
-> **Last Updated:** Phase 1 Web PWA Shell Implemented & Verified
+> **Current Phase:** Phase 2 — Cryptographic Identity Engine & Local Keystore  
+> **Active Branch:** `main` (Ready to branch `feat/local-identity`)  
+> **Last Updated:** Phase 1 Merged to Main (PR #1)
 
 ---
 
@@ -13,7 +13,8 @@
 | **Repository Foundation**      | Root & Tooling                         | Phase 0      | Completed             | Yes           | Verified & Merged     |
 | **Governance Documentation**   | `docs/`                                | Phase 0      | Completed             | Yes           | Verified & Merged     |
 | **Shared Types**               | `packages/shared-types`                | Phase 0      | Completed             | Yes           | Verified & Merged     |
-| **Web Shell & Design System**  | `apps/web`, `packages/ui`              | Phase 1      | Completed             | Yes           | Ready for Merge to Main |
+| **Web Shell & Design System**  | `apps/web`, `packages/ui`              | Phase 1      | Completed             | Yes           | Verified & Merged (PR #1) |
+| **Cryptographic Engine**       | `packages/crypto`                      | Phase 2      | Not Started           | No            | Pending               |
 | **Cryptographic Engine**       | `packages/crypto`                      | Phase 2      | Not Started           | No            | Pending            |
 | **Storage (Dexie)**            | `packages/storage`                     | Phase 2      | Not Started           | No            | Pending            |
 | **Identity Lifecycle**         | `packages/identity`                    | Phase 2      | Not Started           | No            | Pending            |
