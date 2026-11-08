@@ -1,17 +1,4 @@
-export interface CapacitorConfig {
-  appId: string;
-  appName: string;
-  webDir: string;
-  server?: {
-    androidScheme?: string;
-  };
-  android?: {
-    allowMixedContent?: boolean;
-    captureInput?: boolean;
-    webContentsDebuggingEnabled?: boolean;
-  };
-  plugins?: Record<string, unknown>;
-}
+import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "app.campusmesh.mobile",

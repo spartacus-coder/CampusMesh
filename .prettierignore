@@ -6,4 +6,5 @@ pnpm-lock.yaml
 .git/
 .wrangler/
 src-tauri/target/
+apps/mobile/android/
 

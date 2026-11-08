@@ -11,6 +11,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/.wrangler/**",
       "**/target/**",
+      "**/android/**",
       "**/*.d.ts",
     ],
   },
