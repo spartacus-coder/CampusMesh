@@ -113,6 +113,21 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () =>
+    [
+      activeConversation.value?.id,
+      chatStore.activeMessages.length,
+    ] as const,
+  ([convId]) => {
+    const peerFp = activeConversation.value?.peerFingerprint;
+    if (convId && peerFp) {
+      networkStore.sendReadReceipt(peerFp, convId);
+    }
+  },
+  { immediate: true },
+);
+
 function formatMessageTime(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: "2-digit",

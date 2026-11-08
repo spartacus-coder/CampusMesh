@@ -83,13 +83,32 @@ export const useNetworkStore = defineStore("network", () => {
         }
       };
       peerTransport.onDataMessage = (peerFp, channel, data) => {
+        if (channel === "cm-control") {
+          try {
+            const text = new TextDecoder().decode(data);
+            const ack = JSON.parse(text);
+            if (ack.type === "chat_ack" && ack.messageId && ack.deliveryState) {
+              const chatStore = useChatStore();
+              const convId = (ack.conversationId as string) || `conv-${peerFp}`;
+              chatStore.updateMessageDelivery(
+                convId,
+                ack.messageId as string,
+                ack.deliveryState as DeliveryState,
+              );
+            }
+          } catch {
+            // Ignore malformed control packet
+          }
+        }
+
         if (channel === "cm-messages") {
           try {
             const text = new TextDecoder().decode(data);
             const msg = JSON.parse(text);
+            const msgId = msg.id || `m_${Date.now()}`;
             const chatStore = useChatStore();
             chatStore.appendMessage({
-              id: msg.id || `m_${Date.now()}`,
+              id: msgId,
               conversationId: `conv-${peerFp}`,
               senderFingerprint: peerFp,
               recipientFingerprint: msg.recipientFingerprint,
@@ -103,6 +122,12 @@ export const useNetworkStore = defineStore("network", () => {
             nativeService.notifyMessage(
               `CampusMesh (${peerFp.slice(0, 8)})`,
               msg.content || "Encrypted message",
+              `conv-${peerFp}`,
+            );
+            sendDeliveryAck(
+              peerFp,
+              msgId,
+              DeliveryState.DELIVERED,
               `conv-${peerFp}`,
             );
           } catch (err) {
@@ -148,9 +173,10 @@ export const useNetworkStore = defineStore("network", () => {
               ? JSON.parse(data)
               : (data as Record<string, unknown>);
           const senderFp = (msg.senderFingerprint as string) || _senderFp;
+          const msgId = (msg.id as string) || `m_${Date.now()}`;
           const chatStore = useChatStore();
           chatStore.appendMessage({
-            id: (msg.id as string) || `m_${Date.now()}`,
+            id: msgId,
             conversationId: `conv-${senderFp}`,
             senderFingerprint: senderFp,
             recipientFingerprint: msg.recipientFingerprint as
@@ -167,11 +193,32 @@ export const useNetworkStore = defineStore("network", () => {
             (msg.content as string) || "Encrypted message",
             `conv-${senderFp}`,
           );
+          sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, `conv-${senderFp}`);
         } catch (err) {
           console.warn(
             "Failed to process incoming signaling chat message:",
             err,
           );
+        }
+      };
+
+      signalingClient.onChatAck = (_senderFp, data) => {
+        try {
+          const ack =
+            typeof data === "string"
+              ? JSON.parse(data)
+              : (data as Record<string, unknown>);
+          if (ack.messageId && ack.deliveryState) {
+            const chatStore = useChatStore();
+            const convId = (ack.conversationId as string) || `conv-${_senderFp}`;
+            chatStore.updateMessageDelivery(
+              convId,
+              ack.messageId as string,
+              ack.deliveryState as DeliveryState,
+            );
+          }
+        } catch {
+          // Ignore malformed ack
         }
       };
 
@@ -186,8 +233,9 @@ export const useNetworkStore = defineStore("network", () => {
               (msg.senderFingerprint as string) ||
               r.senderFingerprint ||
               "peer";
+            const msgId = (msg.id as string) || `m_${Date.now()}`;
             chatStore.appendMessage({
-              id: (msg.id as string) || `m_${Date.now()}`,
+              id: msgId,
               conversationId: `conv-${senderFp}`,
               senderFingerprint: senderFp,
               recipientFingerprint: msg.recipientFingerprint as
@@ -198,6 +246,7 @@ export const useNetworkStore = defineStore("network", () => {
               deliveryState: DeliveryState.DELIVERED,
               isOutgoing: false,
             });
+            sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, `conv-${senderFp}`);
           } catch {
             // Ignore malformed mailbox record
           }
@@ -406,14 +455,57 @@ export const useNetworkStore = defineStore("network", () => {
     await nativeService.stopLanDiscovery();
   }
 
+  function sendDeliveryAck(
+    targetFingerprint: string,
+    messageId: string,
+    state: DeliveryState,
+    conversationId: string,
+  ) {
+    const payload = {
+      messageId,
+      deliveryState: state,
+      conversationId,
+      timestamp: Date.now(),
+    };
+    if (signalingClient && signalingState.value === SignalingState.CONNECTED) {
+      signalingClient.sendChatAck(targetFingerprint, payload);
+    }
+    if (peerTransport) {
+      const ackBytes = new TextEncoder().encode(
+        JSON.stringify({ type: "chat_ack", ...payload }),
+      );
+      peerTransport.sendData(targetFingerprint, "cm-control", ackBytes);
+    }
+  }
+
+  function sendReadReceipt(peerFingerprint: string, conversationId: string) {
+    const chatStore = useChatStore();
+    const list = chatStore.messagesMap[conversationId];
+    if (list) {
+      for (const msg of list) {
+        if (!msg.isOutgoing && msg.deliveryState !== DeliveryState.READ) {
+          msg.deliveryState = DeliveryState.READ;
+          sendDeliveryAck(
+            peerFingerprint,
+            msg.id,
+            DeliveryState.READ,
+            conversationId,
+          );
+        }
+      }
+    }
+  }
+
   function handleIncomingMeshPayload(rawText: string, fallbackSender: string) {
     try {
       const msg = JSON.parse(rawText) as Record<string, unknown>;
       const senderFp = (msg.senderFingerprint as string) || fallbackSender;
+      const msgId = (msg.id as string) || `m_${Date.now()}`;
+      const targetConvId = (msg.conversationId as string) || `conv-${senderFp}`;
       const chatStore = useChatStore();
       chatStore.appendMessage({
-        id: (msg.id as string) || `m_${Date.now()}`,
-        conversationId: (msg.conversationId as string) || `conv-${senderFp}`,
+        id: msgId,
+        conversationId: targetConvId,
         senderFingerprint: senderFp,
         recipientFingerprint: msg.recipientFingerprint as string | undefined,
         content: (msg.content as string) || "",
@@ -426,8 +518,9 @@ export const useNetworkStore = defineStore("network", () => {
       nativeService.notifyMessage(
         `CampusMesh Air-Gapped (${senderFp.slice(0, 8)})`,
         (msg.content as string) || "Air-Gapped Mesh message",
-        (msg.conversationId as string) || `conv-${senderFp}`,
+        targetConvId,
       );
+      sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, targetConvId);
     } catch {
       // Ignore unparseable raw frame
     }
@@ -517,5 +610,7 @@ export const useNetworkStore = defineStore("network", () => {
     stopAirGappedMesh,
     connectWifiDirect,
     sendBleDirect,
+    sendDeliveryAck,
+    sendReadReceipt,
   };
 });

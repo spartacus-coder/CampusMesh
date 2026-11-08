@@ -3,9 +3,11 @@
 
 mod db;
 mod lan;
+mod queue;
 
 use db::{Database, DbContact, DbConversation, DbMessage};
 use lan::{LanBeacon, LanDiscoveryEngine};
+use queue::SimpleXQueue;
 use std::sync::Arc;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -67,6 +69,16 @@ fn lan_broadcast_beacon(
 fn lan_stop_discovery(lan: State<'_, Arc<LanDiscoveryEngine>>) -> Result<(), String> {
     lan.stop();
     Ok(())
+}
+
+#[tauri::command]
+fn simplex_derive_queue_id(sender: String, recipient: String, epoch: u64) -> String {
+    SimpleXQueue::derive_queue_id(&sender, &recipient, epoch)
+}
+
+#[tauri::command]
+fn simplex_derive_safety_number(pubkey_a: String, pubkey_b: String) -> String {
+    SimpleXQueue::derive_safety_number(&pubkey_a, &pubkey_b)
 }
 
 fn main() {
@@ -146,7 +158,9 @@ fn main() {
             db_get_contacts,
             lan_start_discovery,
             lan_broadcast_beacon,
-            lan_stop_discovery
+            lan_stop_discovery,
+            simplex_derive_queue_id,
+            simplex_derive_safety_number
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

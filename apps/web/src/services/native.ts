@@ -535,4 +535,50 @@ export const nativeService = {
       }
     }
   },
+
+  // === SimpleX-Style Unidirectional Cryptographic Queue & Safety Number ===
+  async simplexDeriveQueueId(
+    sender: string,
+    recipient: string,
+    epoch = 1,
+  ): Promise<string> {
+    if (this.isTauri) {
+      const res = await tauriInvoke<string>("simplex_derive_queue_id", {
+        sender,
+        recipient,
+        epoch,
+      });
+      if (res) return res;
+    }
+    const input = `cm:simplex:queue:v1:${sender}:${recipient}:${epoch}`;
+    const data = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer)).slice(0, 16);
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  },
+
+  async simplexDeriveSafetyNumber(
+    pubkeyA: string,
+    pubkeyB: string,
+  ): Promise<string> {
+    if (this.isTauri) {
+      const res = await tauriInvoke<string>("simplex_derive_safety_number", {
+        pubkeyA,
+        pubkeyB,
+      });
+      if (res) return res;
+    }
+    const sorted = [pubkeyA, pubkeyB].sort();
+    const input = `cm:safety:v1:${sorted[0]}:${sorted[1]}`;
+    const data = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const bytes = new Uint8Array(hashBuffer);
+    const chunks: string[] = [];
+    for (let i = 0; i < 24; i += 4) {
+      const view = new DataView(bytes.buffer, bytes.byteOffset + i, 4);
+      const num = view.getUint32(0) % 100000;
+      chunks.push(num.toString().padStart(5, "0"));
+    }
+    return chunks.join("-");
+  },
 };
