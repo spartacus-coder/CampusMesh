@@ -64,9 +64,11 @@ const githubReleaseUrl =
   "https://github.com/spartacus-coder/CampusMesh/releases/tag/v1.0.0";
 const windowsDownloadUrl =
   "https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0_x64-setup.exe";
+const windowsPortableUrl =
+  "https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0_portable.exe";
 const androidDownloadUrl =
   "https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0.apk";
-const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
+const webAppUrl = "https://campusmesh.pages.dev";
 </script>
 
 <template>
@@ -199,18 +201,24 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
               </p>
               <div class="flex flex-col gap-1 text-xs text-textMuted font-mono">
                 <span>Requirements: Windows 10/11</span>
-                <span>Package: .exe (x64 NSIS)</span>
-                <span>Size: ~12 MB</span>
+                <span>Package: .exe (x64 NSIS & Portable)</span>
+                <span>Size: ~2.2 MB / ~9.1 MB</span>
               </div>
             </div>
 
             <div class="flex flex-col gap-2 pt-2">
               <a
-                :href="windowsDownloadUrl"
-                class="flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary text-primary hover:text-white px-4 py-2.5 rounded-xl font-medium text-xs transition-colors"
+                :href="windowsPortableUrl"
+                class="flex items-center justify-center gap-2 bg-primary hover:bg-primaryHover text-white px-4 py-2.5 rounded-xl font-medium text-xs transition-colors shadow-sm"
               >
                 <Download class="h-4 w-4" />
-                Download Setup (.exe)
+                Download Portable (.exe)
+              </a>
+              <a
+                :href="windowsDownloadUrl"
+                class="flex items-center justify-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-xl font-medium text-xs transition-colors"
+              >
+                Download Setup Installer (.exe)
               </a>
             </div>
           </div>
@@ -232,9 +240,9 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
                 background service and Wi-Fi multicast for offline mesh.
               </p>
               <div class="flex flex-col gap-1 text-xs text-textMuted font-mono">
-                <span>Requirements: Android 8.0+</span>
+                <span>Requirements: Android 7.0+ (API 24+)</span>
                 <span>Package: Universal .apk</span>
-                <span>Size: ~8 MB</span>
+                <span>Size: ~3.5 MB</span>
               </div>
             </div>
 
