@@ -79,7 +79,7 @@ export const useNetworkStore = defineStore("network", () => {
             const chatStore = useChatStore();
             chatStore.appendMessage({
               id: msg.id || `m_${Date.now()}`,
-              conversationId: msg.conversationId || `conv-${peerFp}`,
+              conversationId: `conv-${peerFp}`,
               senderFingerprint: peerFp,
               recipientFingerprint: msg.recipientFingerprint,
               content: msg.content,
@@ -100,7 +100,9 @@ export const useNetworkStore = defineStore("network", () => {
 
     if (!signalingClient) {
       signalingClient = new SignalingClient({
-        serverUrl: import.meta.env.VITE_SIGNALING_URL,
+        serverUrl:
+          import.meta.env.VITE_SIGNALING_URL ||
+          "wss://campusmesh-signaling.chandragupt989.workers.dev",
       });
       signalingClient.onStateChange = (state) => {
         signalingState.value = state;
@@ -131,12 +133,12 @@ export const useNetworkStore = defineStore("network", () => {
             typeof data === "string"
               ? JSON.parse(data)
               : (data as Record<string, unknown>);
+          const senderFp = (msg.senderFingerprint as string) || _senderFp;
           const chatStore = useChatStore();
           chatStore.appendMessage({
             id: (msg.id as string) || `m_${Date.now()}`,
-            conversationId:
-              (msg.conversationId as string) || `conv-${msg.senderFingerprint}`,
-            senderFingerprint: (msg.senderFingerprint as string) || _senderFp,
+            conversationId: `conv-${senderFp}`,
+            senderFingerprint: senderFp,
             recipientFingerprint: msg.recipientFingerprint as
               string | undefined,
             content: (msg.content as string) || "",
@@ -163,15 +165,14 @@ export const useNetworkStore = defineStore("network", () => {
             const r = rec as { envelope?: string; senderFingerprint?: string };
             if (!r.envelope) continue;
             const msg = JSON.parse(r.envelope) as Record<string, unknown>;
+            const senderFp =
+              (msg.senderFingerprint as string) ||
+              r.senderFingerprint ||
+              "peer";
             chatStore.appendMessage({
               id: (msg.id as string) || `m_${Date.now()}`,
-              conversationId:
-                (msg.conversationId as string) ||
-                `conv-${msg.senderFingerprint || r.senderFingerprint}`,
-              senderFingerprint:
-                (msg.senderFingerprint as string) ||
-                r.senderFingerprint ||
-                "peer",
+              conversationId: `conv-${senderFp}`,
+              senderFingerprint: senderFp,
               recipientFingerprint: msg.recipientFingerprint as
                 string | undefined,
               content: (msg.content as string) || "",
@@ -311,9 +312,13 @@ export const useNetworkStore = defineStore("network", () => {
   ): StoredMessage {
     const messageId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const timestamp = Date.now();
+    const targetConvId = conversationId.startsWith("conv-")
+      ? conversationId
+      : `conv-${recipientFingerprint}`;
+
     const payload = {
       id: messageId,
-      conversationId,
+      conversationId: targetConvId,
       content: text,
       contentType: MessageType.TEXT,
       timestamp,
@@ -338,7 +343,7 @@ export const useNetworkStore = defineStore("network", () => {
 
     const storedMsg: StoredMessage = {
       id: messageId,
-      conversationId,
+      conversationId: targetConvId,
       senderFingerprint: localFingerprint,
       recipientFingerprint,
       content: text,

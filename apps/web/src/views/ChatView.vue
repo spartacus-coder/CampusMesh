@@ -22,6 +22,7 @@ import {
   Video,
   Plus,
   Search,
+  UserPlus,
 } from "lucide-vue-next";
 import {
   Avatar,
@@ -36,17 +37,37 @@ import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
 import ActiveCallModal from "../components/ActiveCallModal.vue";
 import IncomingCallModal from "../components/IncomingCallModal.vue";
+import AddContactModal from "../components/AddContactModal.vue";
 import {
   useFileTransferStore,
   type StoredAttachmentPayload,
 } from "../stores/files";
 import { useCallStore } from "../stores/call";
+import { useContactsStore } from "../stores/contacts";
 
 const chatStore = useChatStore();
 const networkStore = useNetworkStore();
 const fileTransferStore = useFileTransferStore();
 const callStore = useCallStore();
 const identityStore = useIdentityStore();
+const contactsStore = useContactsStore();
+
+const isPeerInContacts = computed(() => {
+  if (!activeConversation.value?.peerFingerprint) return true;
+  return contactsStore.contacts.some(
+    (c) => c.fingerprint === activeConversation.value?.peerFingerprint,
+  );
+});
+
+function handleAddPeerToContacts() {
+  if (!activeConversation.value?.peerFingerprint) return;
+  contactsStore.openAddContactWithPeer(
+    activeConversation.value.peerFingerprint,
+    activeConversation.value.name.startsWith("Peer ")
+      ? ""
+      : activeConversation.value.name,
+  );
+}
 
 const inputText = ref("");
 const isDetailsOpen = ref(false);
@@ -333,6 +354,19 @@ function handleStartVideoCall() {
 
         <!-- Header Actions -->
         <div class="flex items-center gap-1">
+          <!-- Add to Contacts Shortcut if sender is not yet in contacts -->
+          <Button
+            v-if="!activeConversation.isGroup && !isPeerInContacts"
+            variant="outline"
+            size="sm"
+            class="text-xs h-8 px-2.5 gap-1.5 border-primary/40 text-primary hover:bg-primary/10 shrink-0"
+            title="Save this peer to your contacts"
+            @click="handleAddPeerToContacts"
+          >
+            <UserPlus class="h-3.5 w-3.5" />
+            <span class="hidden sm:inline">Add Contact</span>
+          </Button>
+
           <!-- Voice Call (1-to-1 direct) -->
           <Button
             v-if="!activeConversation.isGroup"
@@ -664,6 +698,7 @@ function handleStartVideoCall() {
       v-if="showManualSignalModal"
       @close="showManualSignalModal = false"
     />
+    <AddContactModal />
     <ActiveCallModal />
     <IncomingCallModal />
   </div>

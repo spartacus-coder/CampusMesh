@@ -100,10 +100,45 @@ export const useChatStore = defineStore("chat", () => {
   }
 
   function appendMessage(msg: StoredMessage) {
-    if (!messagesMap.value[msg.conversationId]) {
-      messagesMap.value[msg.conversationId] = [];
+    const peerFp = !msg.isOutgoing
+      ? msg.senderFingerprint
+      : msg.recipientFingerprint;
+
+    // Find existing conversation by ID or matching peer fingerprint
+    let conv = conversations.value.find(
+      (c) =>
+        c.id === msg.conversationId || (peerFp && c.peerFingerprint === peerFp),
+    );
+
+    // If conversation doesn't exist yet and it's an incoming message, auto-create it
+    if (!conv && !msg.isOutgoing && msg.senderFingerprint) {
+      const canonicalId = `conv-${msg.senderFingerprint}`;
+      conv = {
+        id: canonicalId,
+        isGroup: false,
+        name: `Peer ${msg.senderFingerprint.slice(0, 8)}`,
+        peerFingerprint: msg.senderFingerprint,
+        lastMessagePreview: msg.content,
+        lastMessageTimestamp: msg.timestamp,
+        unreadCount: activeConversationId.value === canonicalId ? 0 : 1,
+        isPinned: false,
+        isArchived: false,
+      };
+      conversations.value.unshift(conv);
     }
-    const list = messagesMap.value[msg.conversationId];
+
+    // Always ensure message is filed under the true canonical conversation ID
+    const targetConvId = conv
+      ? conv.id
+      : peerFp
+        ? `conv-${peerFp}`
+        : msg.conversationId;
+    msg.conversationId = targetConvId;
+
+    if (!messagesMap.value[targetConvId]) {
+      messagesMap.value[targetConvId] = [];
+    }
+    const list = messagesMap.value[targetConvId];
     if (list) {
       if (list.some((m) => m.id === msg.id)) {
         return;
@@ -111,28 +146,7 @@ export const useChatStore = defineStore("chat", () => {
       list.push(msg);
     }
 
-    let conv = conversations.value.find(
-      (c) =>
-        c.id === msg.conversationId ||
-        (!msg.isOutgoing &&
-          msg.senderFingerprint &&
-          c.peerFingerprint === msg.senderFingerprint),
-    );
-
-    if (!conv && !msg.isOutgoing && msg.senderFingerprint) {
-      conv = {
-        id: msg.conversationId,
-        isGroup: false,
-        name: `Peer ${msg.senderFingerprint.slice(0, 8)}`,
-        peerFingerprint: msg.senderFingerprint,
-        lastMessagePreview: msg.content,
-        lastMessageTimestamp: msg.timestamp,
-        unreadCount: activeConversationId.value === msg.conversationId ? 0 : 1,
-        isPinned: false,
-        isArchived: false,
-      };
-      conversations.value.unshift(conv);
-    } else if (conv) {
+    if (conv) {
       conv.lastMessagePreview = msg.content;
       conv.lastMessageTimestamp = msg.timestamp;
       if (!msg.isOutgoing && activeConversationId.value !== conv.id) {

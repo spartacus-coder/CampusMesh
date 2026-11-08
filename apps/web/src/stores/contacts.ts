@@ -34,6 +34,8 @@ export const useContactsStore = defineStore("contacts", () => {
   const activeFilter = ref<"all" | "verified" | "blocked">("all");
   const selectedContactForVerification = ref<Contact | null>(null);
   const isAddContactOpen = ref(false);
+  const prefilledFingerprint = ref<string>("");
+  const prefilledName = ref<string>("");
   const isSafetyNumberModalOpen = ref(false);
   const isCreateGroupOpen = ref(false);
   const isLoading = ref(false);
@@ -181,6 +183,12 @@ export const useContactsStore = defineStore("contacts", () => {
     return contactManager.parseContactQrPayload(raw);
   }
 
+  function openAddContactWithPeer(fingerprint: string, displayName = "") {
+    prefilledFingerprint.value = fingerprint;
+    prefilledName.value = displayName;
+    isAddContactOpen.value = true;
+  }
+
   const filteredContacts = computed(() => {
     let result = contacts.value;
 
@@ -216,6 +224,9 @@ export const useContactsStore = defineStore("contacts", () => {
     activeFilter,
     selectedContactForVerification,
     isAddContactOpen,
+    prefilledFingerprint,
+    prefilledName,
+    openAddContactWithPeer,
     isSafetyNumberModalOpen,
     isCreateGroupOpen,
     isLoading,

@@ -70,12 +70,18 @@ watch(
     if (isOpen) {
       scanSuccess.value = false;
       error.value = null;
-      if (activeTab.value === "camera") {
+      if (contactsStore.prefilledFingerprint) {
+        fingerprint.value = contactsStore.prefilledFingerprint;
+        displayName.value = contactsStore.prefilledName || "";
+        activeTab.value = "manual";
+      } else if (activeTab.value === "camera") {
         await startCamera();
       }
     } else {
       await stopCamera();
       resetForm();
+      contactsStore.prefilledFingerprint = "";
+      contactsStore.prefilledName = "";
     }
   },
 );
