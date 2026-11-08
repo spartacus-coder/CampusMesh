@@ -1,12 +1,23 @@
 # CampusMesh
 
 [![CI](https://github.com/spartacus-coder/CampusMesh/actions/workflows/ci.yml/badge.svg)](https://github.com/spartacus-coder/CampusMesh/actions/workflows/ci.yml)
+[![Release Binaries](https://github.com/spartacus-coder/CampusMesh/actions/workflows/build-native-artifacts.yml/badge.svg)](https://github.com/spartacus-coder/CampusMesh/actions/workflows/build-native-artifacts.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Zero-Cost Budget](https://img.shields.io/badge/Infrastructure_Cost-%240.00%2Fmo-brightgreen)](docs/COST_POLICY.md)
 
-CampusMesh is a privacy-first, decentralized peer-to-peer (P2P) communication platform designed for college communities, student circles, and personal private communication.
+CampusMesh is a privacy-first, decentralized peer-to-peer (P2P) communication platform designed for college communities, student circles, and personal private communication with a strict **$0.00/month infrastructure budget**.
 
-Communication takes place directly between user devices via WebRTC DataChannels, backed by an ephemeral, zero-cost serverless coordination mesh on Cloudflare (Workers + Durable Objects with SQLite).
+---
+
+## 📦 Direct Downloads & Platforms
+
+| Platform | Format | Direct Download | Target |
+| :--- | :--- | :--- | :--- |
+| **Android Mobile** | `.apk` | [**CampusMesh.apk**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh.apk) | Universal Android 8.0+ |
+| **Windows Desktop (Installer)** | `.exe` | [**CampusMesh-setup.exe**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-setup.exe) | Windows 10 / 11 (x64) |
+| **Windows Desktop (Portable)** | `.exe` | [**CampusMesh-portable.exe**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-portable.exe) | Windows 10 / 11 (Standalone) |
+| **Web App (Cloudflare Pages)** | SPA / PWA | [**https://campusmesh.pages.dev**](https://campusmesh.pages.dev) | Chrome, Firefox, Safari, Edge |
+| **Web App (GitHub Pages)** | SPA / PWA | [**https://spartacus-coder.github.io/CampusMesh/**](https://spartacus-coder.github.io/CampusMesh/) | Fallback Static Mirror |
 
 ---
 
