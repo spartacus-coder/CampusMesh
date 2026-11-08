@@ -173,23 +173,27 @@ export const useNetworkStore = defineStore("network", () => {
               ? JSON.parse(data)
               : (data as Record<string, unknown>);
           const senderFp = (msg.senderFingerprint as string) || _senderFp;
+          const senderName = (msg.senderDisplayName as string) || "";
           const msgId = (msg.id as string) || `m_${Date.now()}`;
           const chatStore = useChatStore();
-          chatStore.appendMessage({
-            id: msgId,
-            conversationId: `conv-${senderFp}`,
-            senderFingerprint: senderFp,
-            recipientFingerprint: msg.recipientFingerprint as
-              string | undefined,
-            content: (msg.content as string) || "",
-            contentType: (msg.contentType as MessageType) || MessageType.TEXT,
-            timestamp: (msg.timestamp as number) || Date.now(),
-            deliveryState: DeliveryState.DELIVERED,
-            isOutgoing: false,
-          });
+          chatStore.appendMessage(
+            {
+              id: msgId,
+              conversationId: `conv-${senderFp}`,
+              senderFingerprint: senderFp,
+              recipientFingerprint: msg.recipientFingerprint as
+                string | undefined,
+              content: (msg.content as string) || "",
+              contentType: (msg.contentType as MessageType) || MessageType.TEXT,
+              timestamp: (msg.timestamp as number) || Date.now(),
+              deliveryState: DeliveryState.DELIVERED,
+              isOutgoing: false,
+            },
+            senderName,
+          );
           nativeService.hapticFeedback();
           nativeService.notifyMessage(
-            `CampusMesh (${senderFp.slice(0, 8)})`,
+            senderName || `CampusMesh (${senderFp.slice(0, 8)})`,
             (msg.content as string) || "Encrypted message",
             `conv-${senderFp}`,
           );
@@ -375,6 +379,7 @@ export const useNetworkStore = defineStore("network", () => {
     conversationId: string,
     text: string,
     localFingerprint: string,
+    senderDisplayName?: string,
   ): StoredMessage {
     const messageId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const timestamp = Date.now();
@@ -389,6 +394,7 @@ export const useNetworkStore = defineStore("network", () => {
       contentType: MessageType.TEXT,
       timestamp,
       senderFingerprint: localFingerprint,
+      senderDisplayName: senderDisplayName || undefined,
       recipientFingerprint,
     };
 

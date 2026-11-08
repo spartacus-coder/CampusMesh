@@ -6,7 +6,10 @@ import {
 } from "./index";
 
 export interface Env {
-  ROOM_COORDINATOR?: unknown;
+  ROOM_COORDINATOR?: {
+    idFromName(name: string): unknown;
+    get(id: unknown): { fetch(req: Request): Promise<Response> };
+  };
 }
 
 export interface ClientAttachment {
@@ -16,7 +19,13 @@ export interface ClientAttachment {
 
 interface DurableObjectStateLike {
   acceptWebSocket?(ws: WebSocket, tags?: string[]): void;
+  getWebSockets?(tag?: string): WebSocket[];
+  getTags?(ws: WebSocket): string[];
   storage?: {
+    get?<T>(key: string): Promise<T | undefined>;
+    put?(key: string, value: unknown): Promise<void>;
+    delete?(key: string): Promise<boolean>;
+    list?<T>(options?: { prefix?: string }): Promise<Map<string, T>>;
     setAlarm?(time: number): Promise<void>;
     deleteAll?(): Promise<void>;
   };
@@ -31,25 +40,64 @@ export class RoomCoordinator {
     public env: Env,
   ) {}
 
+  private getSocket(fingerprint: string): WebSocket | undefined {
+    let ws = this.sockets.get(fingerprint);
+    if ((!ws || ws.readyState !== 1) && this.state?.getWebSockets) {
+      const list = this.state.getWebSockets(fingerprint);
+      const first = list && list.length > 0 ? list[0] : undefined;
+      if (first && first.readyState === 1) {
+        ws = first;
+        this.sockets.set(fingerprint, ws);
+      }
+    }
+    return ws && ws.readyState === 1 ? ws : undefined;
+  }
+
+  public getClientCount(): number {
+    return this.getAllSockets().size;
+  }
+
+  private getAllSockets(): Map<string, WebSocket> {
+    const result = new Map<string, WebSocket>();
+    for (const [fp, ws] of this.sockets.entries()) {
+      if (ws.readyState === 1) result.set(fp, ws);
+    }
+    if (this.state?.getWebSockets) {
+      for (const ws of this.state.getWebSockets()) {
+        if (ws.readyState === 1) {
+          const tags = this.state.getTags ? this.state.getTags(ws) : [];
+          const firstTag = tags && tags.length > 0 ? tags[0] : undefined;
+          if (firstTag) {
+            result.set(firstTag, ws);
+            this.sockets.set(firstTag, ws);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     // Internal Inter-DO message delivery endpoint
-    if (url.pathname === "/internal/deliver") {
+    if (url.pathname === "/deliver" || url.pathname === "/internal/deliver") {
       try {
         const msg = (await request.json()) as SignalingRoomMessage;
+        console.log(`[DO deliver] Received deliver for ${msg.targetFingerprint}`);
         if (!msg.targetFingerprint) {
           return new Response("Missing targetFingerprint", { status: 400 });
         }
-        const targetSocket = this.sockets.get(msg.targetFingerprint);
-        if (targetSocket && targetSocket.readyState === 1) {
+        const targetSocket = this.getSocket(msg.targetFingerprint);
+        console.log(`[DO deliver] targetSocket found? ${Boolean(targetSocket)} (active: ${this.getAllSockets().size})`);
+        if (targetSocket) {
           targetSocket.send(JSON.stringify(msg));
           return new Response(JSON.stringify({ status: "delivered_live" }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
         } else {
-          this.depositMailbox(
+          await this.depositMailbox(
             msg.senderFingerprint,
             msg.targetFingerprint,
             msg.data,
@@ -79,10 +127,12 @@ export class RoomCoordinator {
       });
     }
 
+    const activeSockets = this.getAllSockets();
+
     // Check room capacity limit (Fail-closed mesh scaling rule: max 8 clients per room)
     if (
-      this.sockets.size >= SIGNALING_LIMITS.MAX_CLIENTS_PER_ROOM &&
-      !this.sockets.has(fingerprint)
+      activeSockets.size >= SIGNALING_LIMITS.MAX_CLIENTS_PER_ROOM &&
+      !activeSockets.has(fingerprint)
     ) {
       return new Response(
         JSON.stringify({
@@ -103,18 +153,17 @@ export class RoomCoordinator {
     const pair = new globalObj.WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
 
-    // If Cloudflare Hibernation is available in runtime
+    // Cloudflare Hibernation support
     if (this.state?.acceptWebSocket) {
       this.state.acceptWebSocket(server, [fingerprint]);
     } else {
-      // Standard Node / WinterCG WebSocket acceptance
       if (server.accept) server.accept();
     }
 
     this.sockets.set(fingerprint, server);
 
     // Immediately inform the joining client of existing peers in the room
-    const existingPeers = Array.from(this.sockets.keys()).filter(
+    const existingPeers = Array.from(this.getAllSockets().keys()).filter(
       (fp) => fp !== fingerprint,
     );
     if (existingPeers.length > 0) {
@@ -131,6 +180,9 @@ export class RoomCoordinator {
       }
     }
 
+    // Deliver any pending offline messages from mailbox immediately upon connect
+    await this.deliverPendingMailbox(fingerprint, server);
+
     // Schedule cleanup alarm (15 minutes from now)
     if (this.state?.storage?.setAlarm) {
       const expiration =
@@ -144,6 +196,50 @@ export class RoomCoordinator {
       status: 101,
       webSocket: client,
     } as unknown as ResponseInit);
+  }
+
+  // --- Cloudflare Hibernation Handlers ---
+
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    let fingerprint = "";
+    if (this.state?.getTags) {
+      const tags = this.state.getTags(ws);
+      if (tags && tags.length > 0 && tags[0]) fingerprint = tags[0];
+    }
+    if (!fingerprint) {
+      for (const [fp, s] of this.sockets.entries()) {
+        if (s === ws) {
+          fingerprint = fp;
+          break;
+        }
+      }
+    }
+    if (fingerprint) {
+      await this.handleMessage(fingerprint, message);
+    }
+  }
+
+  async webSocketClose(ws: WebSocket) {
+    let fingerprint = "";
+    if (this.state?.getTags) {
+      const tags = this.state.getTags(ws);
+      if (tags && tags.length > 0 && tags[0]) fingerprint = tags[0];
+    }
+    if (!fingerprint) {
+      for (const [fp, s] of this.sockets.entries()) {
+        if (s === ws) {
+          fingerprint = fp;
+          break;
+        }
+      }
+    }
+    if (fingerprint) {
+      this.handleClose(fingerprint);
+    }
+  }
+
+  async webSocketError(ws: WebSocket) {
+    await this.webSocketClose(ws);
   }
 
   private setupSocketListeners(ws: WebSocket, fingerprint: string) {
@@ -160,7 +256,7 @@ export class RoomCoordinator {
     });
   }
 
-  public handleMessage(senderFp: string, rawData: string | ArrayBuffer) {
+  public async handleMessage(senderFp: string, rawData: string | ArrayBuffer) {
     if (typeof rawData !== "string") return;
     if (rawData.length > SIGNALING_LIMITS.MAX_MESSAGE_BYTES) return;
 
@@ -174,9 +270,10 @@ export class RoomCoordinator {
     if (!validateSignalingMessage(parsed)) return;
 
     const msg: SignalingRoomMessage = parsed;
+    console.log(`[DO handleMessage] From ${senderFp}, type: ${msg.type}, target: ${msg.targetFingerprint}`);
 
     if (msg.type === "ping") {
-      const socket = this.sockets.get(senderFp);
+      const socket = this.getSocket(senderFp);
       if (socket && socket.readyState === 1) {
         socket.send(
           JSON.stringify({ type: "pong", senderFingerprint: "server" }),
@@ -185,10 +282,10 @@ export class RoomCoordinator {
       return;
     }
 
-    if (msg.type === "chat_message") {
+    if (msg.type === "chat_message" || msg.type === "chat_ack") {
       if (!msg.targetFingerprint) return;
-      const targetSocket = this.sockets.get(msg.targetFingerprint);
-      if (targetSocket && targetSocket.readyState === 1) {
+      const targetSocket = this.getSocket(msg.targetFingerprint);
+      if (targetSocket) {
         targetSocket.send(
           JSON.stringify({
             ...msg,
@@ -196,44 +293,29 @@ export class RoomCoordinator {
           }),
         );
       } else {
-        this.forwardOrDeposit(senderFp, msg);
+        await this.forwardOrDeposit(senderFp, msg);
       }
       return;
     }
 
     if (msg.type === "mailbox_deposit") {
       if (!msg.targetFingerprint) return;
-      this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+      await this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
       return;
     }
 
     if (msg.type === "mailbox_fetch") {
-      this.purgeExpiredMailbox();
-      const pending: MailboxRecord[] = [];
-      for (const [id, record] of this.mailbox.entries()) {
-        if (record.recipientFingerprint === senderFp) {
-          pending.push(record);
-          this.mailbox.delete(id);
-        }
-      }
-
-      const socket = this.sockets.get(senderFp);
-      if (socket && socket.readyState === 1) {
-        socket.send(
-          JSON.stringify({
-            type: "mailbox_deliver",
-            senderFingerprint: "server",
-            mailboxMessages: pending,
-          }),
-        );
+      const socket = this.getSocket(senderFp);
+      if (socket) {
+        await this.deliverPendingMailbox(senderFp, socket);
       }
       return;
     }
 
-    // Direct relay or Inter-DO forwarding to target peer
+    // Direct relay or Inter-DO forwarding to target peer (offers, answers, candidates)
     if (msg.targetFingerprint) {
-      const targetSocket = this.sockets.get(msg.targetFingerprint);
-      if (targetSocket && targetSocket.readyState === 1) {
+      const targetSocket = this.getSocket(msg.targetFingerprint);
+      if (targetSocket) {
         targetSocket.send(
           JSON.stringify({
             ...msg,
@@ -241,13 +323,14 @@ export class RoomCoordinator {
           }),
         );
       } else {
-        this.forwardOrDeposit(senderFp, msg);
+        await this.forwardOrDeposit(senderFp, msg);
       }
       return;
     }
 
     // Broadcast to all other peers in the room
-    for (const [otherFp, socket] of this.sockets.entries()) {
+    const allSockets = this.getAllSockets();
+    for (const [otherFp, socket] of allSockets.entries()) {
       if (otherFp !== senderFp && socket.readyState === 1) {
         socket.send(
           JSON.stringify({
@@ -263,7 +346,8 @@ export class RoomCoordinator {
     this.sockets.delete(fingerprint);
 
     // Broadcast peer departure
-    for (const socket of this.sockets.values()) {
+    const allSockets = this.getAllSockets();
+    for (const socket of allSockets.values()) {
       if (socket.readyState === 1) {
         socket.send(
           JSON.stringify({
@@ -277,23 +361,16 @@ export class RoomCoordinator {
 
   private async forwardOrDeposit(senderFp: string, msg: SignalingRoomMessage) {
     if (!msg.targetFingerprint) return;
+    console.log(`[DO] forwardOrDeposit from ${senderFp} to ${msg.targetFingerprint}`);
 
-    const coordinatorBinding = (this.env as Record<string, unknown>)
-      .ROOM_COORDINATOR as
-      | {
-          idFromName(name: string): unknown;
-          get(id: unknown): { fetch(req: Request): Promise<Response> };
-        }
-      | undefined;
-
-    if (coordinatorBinding) {
+    if (this.env?.ROOM_COORDINATOR) {
       try {
-        const targetId = coordinatorBinding.idFromName(
-          `user_${msg.targetFingerprint}`,
-        );
-        const targetStub = coordinatorBinding.get(targetId);
-        await targetStub.fetch(
-          new Request("https://internal/deliver", {
+        const targetRoom = `user_${msg.targetFingerprint}`;
+        console.log(`[DO] Looking up target room: ${targetRoom}`);
+        const targetId = this.env.ROOM_COORDINATOR.idFromName(targetRoom);
+        const targetStub = this.env.ROOM_COORDINATOR.get(targetId);
+        const resp = await targetStub.fetch(
+          new Request("http://internal/deliver", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -302,20 +379,61 @@ export class RoomCoordinator {
             }),
           }),
         );
+        const respText = await resp.text();
+        console.log(`[DO] Inter-DO response: ${resp.status} ${respText}`);
         return;
-      } catch {
-        // Fallback to local mailbox if inter-DO delivery throws
+      } catch (err) {
+        console.error(`[DO] Inter-DO fetch failed:`, err);
+      }
+    } else {
+      console.warn(`[DO] this.env.ROOM_COORDINATOR is missing!`);
+    }
+
+    await this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+  }
+
+  private async deliverPendingMailbox(fingerprint: string, socket: WebSocket) {
+    this.purgeExpiredMailbox();
+    const pending: MailboxRecord[] = [];
+    for (const [id, record] of this.mailbox.entries()) {
+      if (record.recipientFingerprint === fingerprint) {
+        pending.push(record);
+        this.mailbox.delete(id);
       }
     }
 
-    this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+    if (this.state?.storage?.list) {
+      try {
+        const stored = await this.state.storage.list<MailboxRecord>({ prefix: "mbx_" });
+        for (const [key, record] of stored.entries()) {
+          if (record.recipientFingerprint === fingerprint) {
+            pending.push(record);
+            if (this.state.storage.delete) {
+              await this.state.storage.delete(key);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[DO] Failed reading mailbox from storage:", err);
+      }
+    }
+
+    if (pending.length > 0 && socket.readyState === 1) {
+      socket.send(
+        JSON.stringify({
+          type: "mailbox_deliver",
+          senderFingerprint: "server",
+          mailboxMessages: pending,
+        }),
+      );
+    }
   }
 
-  private depositMailbox(senderFp: string, targetFp: string, data: unknown) {
+  private async depositMailbox(senderFp: string, targetFp: string, data: unknown) {
     this.purgeExpiredMailbox();
     if (this.mailbox.size >= SIGNALING_LIMITS.MAX_MAILBOX_MESSAGES_PER_ROOM) {
-      const socket = this.sockets.get(senderFp);
-      if (socket && socket.readyState === 1) {
+      const socket = this.getSocket(senderFp);
+      if (socket) {
         socket.send(
           JSON.stringify({
             type: "mailbox_deliver",
@@ -338,6 +456,14 @@ export class RoomCoordinator {
       expiresAt: now + SIGNALING_LIMITS.MAILBOX_TTL_SECONDS * 1000,
     };
     this.mailbox.set(id, record);
+
+    if (this.state?.storage?.put) {
+      try {
+        await this.state.storage.put(id, record);
+      } catch (err) {
+        console.warn("[DO] Failed writing mailbox to storage:", err);
+      }
+    }
   }
 
   public purgeExpiredMailbox(): number {
@@ -358,18 +484,12 @@ export class RoomCoordinator {
 
   async alarm() {
     this.purgeExpiredMailbox();
-    // If no connected sockets and mailbox is empty, room has expired; clean up state
-    if (
-      this.sockets.size === 0 &&
-      this.mailbox.size === 0 &&
-      this.state?.storage?.deleteAll
-    ) {
-      await this.state.storage.deleteAll();
+    const active = this.getAllSockets();
+    if (active.size === 0 && this.mailbox.size === 0) {
+      if (this.state?.storage?.deleteAll) {
+        await this.state.storage.deleteAll();
+      }
     }
-  }
-
-  public getClientCount(): number {
-    return this.sockets.size;
   }
 }
 

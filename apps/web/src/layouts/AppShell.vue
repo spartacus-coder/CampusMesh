@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { PeerConnectionState, type Conversation } from "@campusmesh/shared-types";
 import { useThemeStore } from "../stores/theme";
 import { useNetworkStore } from "../stores/network";
 import { useChatStore } from "../stores/chat";
@@ -87,6 +88,20 @@ function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
     name: peer.displayName,
     tag: "0ms Local Wi-Fi",
   });
+}
+
+function isPeerOnline(conv: Conversation): boolean {
+  if (conv.isGroup) return false;
+  if (!conv.peerFingerprint) return false;
+  if (networkStore.lanPeers[conv.peerFingerprint]) return true;
+  if (networkStore.blePeers[conv.peerFingerprint]) return true;
+  if (
+    chatStore.activeConversationId === conv.id &&
+    networkStore.peerState === PeerConnectionState.CONNECTED
+  ) {
+    return true;
+  }
+  return false;
 }
 </script>
 
@@ -273,7 +288,7 @@ function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
             "
             @click="chatStore.selectConversation(conv.id)"
           >
-            <Avatar :name="conv.name" size="md" :is-online="!conv.isGroup" />
+            <Avatar :name="conv.name" size="md" :is-online="isPeerOnline(conv)" />
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between mb-0.5">
                 <span class="text-sm font-semibold text-textPrimary truncate">{{

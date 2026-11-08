@@ -111,7 +111,7 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
-  function appendMessage(msg: StoredMessage) {
+  function appendMessage(msg: StoredMessage, senderDisplayName?: string) {
     const peerFp = !msg.isOutgoing
       ? msg.senderFingerprint
       : msg.recipientFingerprint;
@@ -128,7 +128,7 @@ export const useChatStore = defineStore("chat", () => {
       conv = {
         id: canonicalId,
         isGroup: false,
-        name: `Peer ${msg.senderFingerprint.slice(0, 8)}`,
+        name: senderDisplayName || `Peer ${msg.senderFingerprint.slice(0, 8)}`,
         peerFingerprint: msg.senderFingerprint,
         lastMessagePreview: msg.content,
         lastMessageTimestamp: msg.timestamp,

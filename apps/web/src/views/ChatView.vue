@@ -32,7 +32,7 @@ import {
   Badge,
   ConnectionStatusBar,
 } from "@campusmesh/ui";
-import { DeliveryState, MessageType } from "@campusmesh/shared-types";
+import { DeliveryState, MessageType, PeerConnectionState } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
 import ActiveCallModal from "../components/ActiveCallModal.vue";
@@ -80,6 +80,17 @@ const activeConversation = computed(() => {
   return chatStore.conversations.find(
     (c) => c.id === chatStore.activeConversationId,
   );
+});
+
+const isActivePeerOnline = computed(() => {
+  if (!activeConversation.value) return false;
+  if (activeConversation.value.isGroup) return false;
+  const peerFp = activeConversation.value.peerFingerprint;
+  if (!peerFp) return false;
+  if (networkStore.lanPeers[peerFp]) return true;
+  if (networkStore.blePeers[peerFp]) return true;
+  if (networkStore.peerState === PeerConnectionState.CONNECTED) return true;
+  return false;
 });
 
 const filteredMobileConversations = computed(() => {
@@ -138,6 +149,7 @@ function formatMessageTime(timestamp: number): string {
 function handleSendMessage() {
   if (!inputText.value.trim() || !activeConversation.value) return;
   const myFp = identityStore.identity?.fingerprint || "me";
+  const myName = identityStore.identity?.displayName || "CampusMesh User";
   const peerFp = activeConversation.value.peerFingerprint;
 
   if (peerFp) {
@@ -146,6 +158,7 @@ function handleSendMessage() {
       activeConversation.value.id,
       inputText.value.trim(),
       myFp,
+      myName,
     );
   } else {
     const newMsg: StoredMessage = {
@@ -279,7 +292,19 @@ function handleStartVideoCall() {
           class="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-surface-hover active:bg-surface transition-colors border border-transparent hover:border-border"
           @click="chatStore.selectConversation(conv.id)"
         >
-          <Avatar :name="conv.name" size="md" :is-online="!conv.isGroup" />
+          <Avatar
+            :name="conv.name"
+            size="md"
+            :is-online="
+              Boolean(
+                conv.peerFingerprint &&
+                  (networkStore.lanPeers[conv.peerFingerprint] ||
+                    networkStore.blePeers[conv.peerFingerprint] ||
+                    (chatStore.activeConversationId === conv.id &&
+                      networkStore.peerState === PeerConnectionState.CONNECTED)),
+              )
+            "
+          />
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between mb-0.5">
               <span class="text-sm font-semibold text-textPrimary truncate">{{
@@ -344,7 +369,7 @@ function handleStartVideoCall() {
           <Avatar
             :name="activeConversation.name"
             size="md"
-            :is-online="!activeConversation.isGroup"
+            :is-online="isActivePeerOnline"
           />
 
           <div class="min-w-0">
