@@ -6,22 +6,28 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.WifiManager;
+import android.net.wifi.p2p.WifiP2pDevice;
 import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
 import androidx.core.app.NotificationCompat;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import app.campusmesh.mobile.mesh.BleMeshManager;
+import app.campusmesh.mobile.mesh.WifiDirectManager;
+import app.campusmesh.mobile.security.KeystoreManager;
 import app.campusmesh.mobile.services.MeshForegroundService;
 import org.json.JSONObject;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
+import java.util.List;
 
 @CapacitorPlugin(name = "CampusMeshNative")
 public class CampusMeshNativePlugin extends Plugin {
@@ -34,6 +40,94 @@ public class CampusMeshNativePlugin extends Plugin {
     private MulticastSocket multicastSocket;
     private Thread lanListenerThread;
     private volatile boolean isLanRunning = false;
+
+    private WifiDirectManager wifiDirectManager;
+    private BleMeshManager bleMeshManager;
+
+    @Override
+    public void load() {
+        super.load();
+        initWifiDirect();
+        initBleMesh();
+    }
+
+    private synchronized void initWifiDirect() {
+        if (wifiDirectManager == null) {
+            wifiDirectManager = new WifiDirectManager(getContext());
+            wifiDirectManager.setListener(new WifiDirectManager.WifiDirectListener() {
+                @Override
+                public void onPeersUpdated(List<WifiP2pDevice> peers) {
+                    JSArray arr = new JSArray();
+                    for (WifiP2pDevice d : peers) {
+                        JSObject obj = new JSObject();
+                        obj.put("deviceAddress", d.deviceAddress);
+                        obj.put("deviceName", d.deviceName);
+                        obj.put("status", d.status);
+                        arr.put(obj);
+                    }
+                    JSObject event = new JSObject();
+                    event.put("peers", arr);
+                    notifyListeners("wifiDirectPeersDiscovered", event);
+                }
+
+                @Override
+                public void onConnectionChanged(boolean isConnected, boolean isGroupOwner, String groupOwnerAddress) {
+                    JSObject event = new JSObject();
+                    event.put("isConnected", isConnected);
+                    event.put("isGroupOwner", isGroupOwner);
+                    event.put("groupOwnerAddress", groupOwnerAddress);
+                    notifyListeners("wifiDirectConnectionChanged", event);
+                }
+
+                @Override
+                public void onMessageReceived(String message, String remoteAddress) {
+                    JSObject event = new JSObject();
+                    event.put("message", message);
+                    event.put("remoteAddress", remoteAddress);
+                    notifyListeners("wifiDirectMessageReceived", event);
+                }
+
+                @Override
+                public void onError(String message) {
+                    JSObject event = new JSObject();
+                    event.put("error", message);
+                    notifyListeners("wifiDirectError", event);
+                }
+            });
+        }
+    }
+
+    private synchronized void initBleMesh() {
+        if (bleMeshManager == null) {
+            bleMeshManager = new BleMeshManager(getContext());
+            bleMeshManager.setListener(new BleMeshManager.BleMeshListener() {
+                @Override
+                public void onPeerDiscovered(String deviceAddress, String deviceName, String fingerprintHash, int rssi) {
+                    JSObject event = new JSObject();
+                    event.put("deviceAddress", deviceAddress);
+                    event.put("deviceName", deviceName);
+                    event.put("fingerprintHash", fingerprintHash);
+                    event.put("rssi", rssi);
+                    notifyListeners("blePeerDiscovered", event);
+                }
+
+                @Override
+                public void onMessageReceived(String message, String senderAddress) {
+                    JSObject event = new JSObject();
+                    event.put("message", message);
+                    event.put("senderAddress", senderAddress);
+                    notifyListeners("bleMessageReceived", event);
+                }
+
+                @Override
+                public void onError(String error) {
+                    JSObject event = new JSObject();
+                    event.put("error", error);
+                    notifyListeners("bleError", event);
+                }
+            });
+        }
+    }
 
     @PluginMethod
     public void startForegroundService(PluginCall call) {
@@ -98,21 +192,19 @@ public class CampusMeshNativePlugin extends Plugin {
 
             PendingIntent pendingIntent = PendingIntent.getActivity(
                 context,
-                msgNotificationId,
+                (int) System.currentTimeMillis(),
                 notifyIntent,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-                    : PendingIntent.FLAG_UPDATE_CURRENT
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0)
             );
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, MSG_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.stat_notify_chat)
                 .setContentTitle(title)
                 .setContentText(body)
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE);
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setAutoCancel(true)
+                .setContentIntent(pendingIntent);
 
             NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager != null) {
@@ -120,10 +212,10 @@ public class CampusMeshNativePlugin extends Plugin {
             }
 
             JSObject ret = new JSObject();
-            ret.put("success", true);
+            ret.put("status", "notified");
             call.resolve(ret);
         } catch (Exception e) {
-            call.reject("Failed to show native notification: " + e.getMessage(), e);
+            call.reject("Failed to post notification: " + e.getMessage(), e);
         }
     }
 
@@ -134,29 +226,28 @@ public class CampusMeshNativePlugin extends Plugin {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 VibratorManager vibratorManager = (VibratorManager) context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
                 if (vibratorManager != null) {
-                    Vibrator vibrator = vibratorManager.getDefaultVibrator();
-                    vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK));
+                    vibratorManager.getDefaultVibrator().vibrate(
+                        VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+                    );
                 }
             } else {
-                Vibrator vibrator = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
-                if (vibrator != null) {
+                Vibrator v = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
+                if (v != null) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        vibrator.vibrate(VibrationEffect.createOneShot(35, VibrationEffect.DEFAULT_AMPLITUDE));
+                        v.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE));
                     } else {
-                        vibrator.vibrate(35);
+                        v.vibrate(40);
                     }
                 }
             }
             call.resolve();
         } catch (Exception e) {
-            call.reject("Haptic failed: " + e.getMessage());
+            call.resolve();
         }
     }
 
     @PluginMethod
     public void startLanDiscovery(PluginCall call) {
-        final String localFingerprint = call.getString("localFingerprint", "");
-
         if (isLanRunning) {
             JSObject ret = new JSObject();
             ret.put("status", "already_running");
@@ -176,27 +267,27 @@ public class CampusMeshNativePlugin extends Plugin {
             multicastSocket = new MulticastSocket(MULTICAST_PORT);
             InetAddress group = InetAddress.getByName(MULTICAST_IP);
             multicastSocket.joinGroup(group);
-
             isLanRunning = true;
+
             lanListenerThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     byte[] buffer = new byte[2048];
-                    while (isLanRunning) {
+                    while (isLanRunning && multicastSocket != null && !multicastSocket.isClosed()) {
                         try {
                             DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                             multicastSocket.receive(packet);
-                            String raw = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
-                            JSONObject json = new JSONObject(raw);
-                            String fp = json.optString("fingerprint", "");
 
-                            if (!fp.isEmpty() && !fp.equals(localFingerprint)) {
+                            String rawJson = new String(packet.getData(), packet.getOffset(), packet.getLength(), "UTF-8");
+                            JSONObject obj = new JSONObject(rawJson);
+
+                            if (obj.has("fingerprint")) {
                                 JSObject peerEvent = new JSObject();
-                                peerEvent.put("fingerprint", fp);
-                                peerEvent.put("displayName", json.optString("display_name", "Peer"));
+                                peerEvent.put("fingerprint", obj.getString("fingerprint"));
+                                peerEvent.put("displayName", obj.optString("display_name", "Peer"));
                                 peerEvent.put("ip", packet.getAddress().getHostAddress());
-                                peerEvent.put("port", json.optInt("port", MULTICAST_PORT));
-                                peerEvent.put("timestamp", json.optLong("timestamp", System.currentTimeMillis()));
+                                peerEvent.put("port", obj.optInt("port", MULTICAST_PORT));
+                                peerEvent.put("timestamp", obj.optLong("timestamp", System.currentTimeMillis()));
 
                                 notifyListeners("lanPeerDiscovered", peerEvent);
                             }
@@ -260,7 +351,133 @@ public class CampusMeshNativePlugin extends Plugin {
 
         JSObject ret = new JSObject();
         ret.put("status", "stopped");
+        if (call != null) {
+            call.resolve(ret);
+        }
+    }
+
+    // --- Hardware Keystore Enclave Methods ---
+
+    @PluginMethod
+    public void keystoreEncrypt(PluginCall call) {
+        String data = call.getString("data", "");
+        try {
+            String encrypted = KeystoreManager.getInstance().encrypt(data);
+            JSObject ret = new JSObject();
+            ret.put("encrypted", encrypted);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Keystore encryption failed: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void keystoreDecrypt(PluginCall call) {
+        String encrypted = call.getString("encrypted", "");
+        try {
+            String decrypted = KeystoreManager.getInstance().decrypt(encrypted);
+            JSObject ret = new JSObject();
+            ret.put("data", decrypted);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Keystore decryption failed: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void isHardwareSecurityAvailable(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("isHardwareBacked", KeystoreManager.getInstance().isHardwareBacked());
         call.resolve(ret);
+    }
+
+    // --- Air-Gapped Wi-Fi Direct Methods ---
+
+    @PluginMethod
+    public void startWifiDirectDiscovery(PluginCall call) {
+        initWifiDirect();
+        wifiDirectManager.startDiscovery();
+        JSObject ret = new JSObject();
+        ret.put("status", "started");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void stopWifiDirectDiscovery(PluginCall call) {
+        if (wifiDirectManager != null) {
+            wifiDirectManager.stopDiscovery();
+        }
+        JSObject ret = new JSObject();
+        ret.put("status", "stopped");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void connectWifiDirect(PluginCall call) {
+        String deviceAddress = call.getString("deviceAddress", "");
+        if (deviceAddress == null || deviceAddress.isEmpty()) {
+            call.reject("Missing deviceAddress parameter");
+            return;
+        }
+        initWifiDirect();
+        wifiDirectManager.connect(deviceAddress);
+        JSObject ret = new JSObject();
+        ret.put("status", "connecting");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void disconnectWifiDirect(PluginCall call) {
+        if (wifiDirectManager != null) {
+            wifiDirectManager.disconnect();
+        }
+        JSObject ret = new JSObject();
+        ret.put("status", "disconnected");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void sendWifiDirectMessage(PluginCall call) {
+        String message = call.getString("message", "");
+        if (wifiDirectManager != null) {
+            wifiDirectManager.sendMessage(message);
+        }
+        call.resolve();
+    }
+
+    // --- Air-Gapped BLE Mesh Methods ---
+
+    @PluginMethod
+    public void startBleMesh(PluginCall call) {
+        String fingerprint = call.getString("fingerprint", "");
+        String displayName = call.getString("displayName", "Campus User");
+        initBleMesh();
+        bleMeshManager.startScan();
+        bleMeshManager.startAdvertising(fingerprint, displayName);
+        JSObject ret = new JSObject();
+        ret.put("status", "active");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void stopBleMesh(PluginCall call) {
+        if (bleMeshManager != null) {
+            bleMeshManager.stopScan();
+            bleMeshManager.stopAdvertising();
+        }
+        JSObject ret = new JSObject();
+        ret.put("status", "stopped");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void sendBleMessage(PluginCall call) {
+        String deviceAddress = call.getString("deviceAddress", "");
+        String message = call.getString("message", "");
+        if (bleMeshManager != null) {
+            bleMeshManager.sendMessage(deviceAddress, message);
+        }
+        call.resolve();
     }
 
     private void createMessageNotificationChannel(Context context) {
@@ -282,6 +499,12 @@ public class CampusMeshNativePlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         stopLanDiscovery(null);
+        if (wifiDirectManager != null) {
+            wifiDirectManager.stopDiscovery();
+        }
+        if (bleMeshManager != null) {
+            bleMeshManager.destroy();
+        }
         super.handleOnDestroy();
     }
 }

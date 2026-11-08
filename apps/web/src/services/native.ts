@@ -14,6 +14,19 @@ export interface LanPeer {
   timestamp: number;
 }
 
+export interface WifiDirectPeer {
+  deviceAddress: string;
+  deviceName: string;
+  status: number;
+}
+
+export interface BlePeer {
+  deviceAddress: string;
+  deviceName: string;
+  fingerprintHash: string;
+  rssi: number;
+}
+
 export interface NativeDbConversation {
   id: string;
   name: string;
@@ -56,9 +69,26 @@ interface CampusMeshNativePluginApi {
     fingerprint: string;
     displayName: string;
   }) => Promise<unknown>;
+  keystoreEncrypt?: (options: { data: string }) => Promise<{ encrypted: string }>;
+  keystoreDecrypt?: (options: { encrypted: string }) => Promise<{ data: string }>;
+  isHardwareSecurityAvailable?: () => Promise<{ isHardwareBacked: boolean }>;
+  startWifiDirectDiscovery?: () => Promise<unknown>;
+  stopWifiDirectDiscovery?: () => Promise<unknown>;
+  connectWifiDirect?: (options: { deviceAddress: string }) => Promise<unknown>;
+  disconnectWifiDirect?: () => Promise<unknown>;
+  sendWifiDirectMessage?: (options: { message: string }) => Promise<unknown>;
+  startBleMesh?: (options: {
+    fingerprint: string;
+    displayName: string;
+  }) => Promise<unknown>;
+  stopBleMesh?: () => Promise<unknown>;
+  sendBleMessage?: (options: {
+    deviceAddress: string;
+    message: string;
+  }) => Promise<unknown>;
   addListener?: (
     eventName: string,
-    listenerFunc: (data: LanPeer) => void,
+    listenerFunc: (data: never) => void,
   ) => Promise<unknown>;
   [key: string]: unknown;
 }
@@ -357,5 +387,152 @@ export const nativeService = {
       }
     }
     return null;
+  },
+
+  // === Hardware-Backed Keystore Enclave ===
+  async keystoreEncrypt(data: string): Promise<string> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.keystoreEncrypt) {
+        const res = await nativePlugin.keystoreEncrypt({ data });
+        return res.encrypted;
+      }
+    }
+    // Web fallback: base64 obfuscation or WebCrypto
+    return btoa(unescape(encodeURIComponent(data)));
+  },
+
+  async keystoreDecrypt(encrypted: string): Promise<string> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.keystoreDecrypt) {
+        const res = await nativePlugin.keystoreDecrypt({ encrypted });
+        return res.data;
+      }
+    }
+    // Web fallback
+    return decodeURIComponent(escape(atob(encrypted)));
+  },
+
+  async isHardwareSecurityAvailable(): Promise<boolean> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.isHardwareSecurityAvailable) {
+        const res = await nativePlugin.isHardwareSecurityAvailable();
+        return res.isHardwareBacked;
+      }
+    }
+    return false;
+  },
+
+  // === Air-Gapped Wi-Fi Direct Radio ===
+  async startWifiDirectDiscovery(
+    onPeers: (peers: WifiDirectPeer[]) => void,
+    onMessage?: (message: string, remoteAddress: string) => void,
+  ): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.startWifiDirectDiscovery) {
+        await nativePlugin.startWifiDirectDiscovery();
+        if (nativePlugin.addListener) {
+          await nativePlugin.addListener(
+            "wifiDirectPeersDiscovered",
+            (data: { peers: WifiDirectPeer[] }) => {
+              if (data?.peers) onPeers(data.peers);
+            },
+          );
+          if (onMessage) {
+            await nativePlugin.addListener(
+              "wifiDirectMessageReceived",
+              (data: { message: string; remoteAddress: string }) => {
+                if (data?.message) onMessage(data.message, data.remoteAddress);
+              },
+            );
+          }
+        }
+      }
+    }
+  },
+
+  async stopWifiDirectDiscovery(): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.stopWifiDirectDiscovery) {
+        await nativePlugin.stopWifiDirectDiscovery();
+      }
+    }
+  },
+
+  async connectWifiDirect(deviceAddress: string): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.connectWifiDirect) {
+        await nativePlugin.connectWifiDirect({ deviceAddress });
+      }
+    }
+  },
+
+  async disconnectWifiDirect(): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.disconnectWifiDirect) {
+        await nativePlugin.disconnectWifiDirect();
+      }
+    }
+  },
+
+  async sendWifiDirectMessage(message: string): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.sendWifiDirectMessage) {
+        await nativePlugin.sendWifiDirectMessage({ message });
+      }
+    }
+  },
+
+  // === Air-Gapped Bluetooth Low Energy (BLE) Mesh ===
+  async startBleMesh(
+    fingerprint: string,
+    displayName: string,
+    onPeer: (peer: BlePeer) => void,
+    onMessage?: (message: string, senderAddress: string) => void,
+  ): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.startBleMesh) {
+        await nativePlugin.startBleMesh({ fingerprint, displayName });
+        if (nativePlugin.addListener) {
+          await nativePlugin.addListener("blePeerDiscovered", (peer: BlePeer) => {
+            if (peer) onPeer(peer);
+          });
+          if (onMessage) {
+            await nativePlugin.addListener(
+              "bleMessageReceived",
+              (data: { message: string; senderAddress: string }) => {
+                if (data?.message) onMessage(data.message, data.senderAddress);
+              },
+            );
+          }
+        }
+      }
+    }
+  },
+
+  async stopBleMesh(): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.stopBleMesh) {
+        await nativePlugin.stopBleMesh();
+      }
+    }
+  },
+
+  async sendBleMessage(deviceAddress: string, message: string): Promise<void> {
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.sendBleMessage) {
+        await nativePlugin.sendBleMessage({ deviceAddress, message });
+      }
+    }
   },
 };

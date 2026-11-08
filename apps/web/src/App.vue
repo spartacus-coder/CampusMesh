@@ -17,7 +17,7 @@ watch(
   ([unlocked, fp]) => {
     if (unlocked && fp) {
       networkStore.connectUserSignaling(fp);
-      networkStore.startLanDiscovery(
+      networkStore.startAirGappedMesh(
         fp,
         identityStore.identity?.displayName || "Peer",
       );

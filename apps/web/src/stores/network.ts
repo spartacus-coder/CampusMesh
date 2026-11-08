@@ -8,7 +8,12 @@ import {
 } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import { useChatStore } from "./chat";
-import { nativeService, type LanPeer } from "../services/native";
+import {
+  nativeService,
+  type LanPeer,
+  type WifiDirectPeer,
+  type BlePeer,
+} from "../services/native";
 import {
   SignalingClient,
   WebRtcPeerTransport,
@@ -23,9 +28,12 @@ export const useNetworkStore = defineStore("network", () => {
   const signalingState = ref<SignalingState>(SignalingState.CONNECTED);
   const peerState = ref<PeerConnectionState>(PeerConnectionState.CONNECTED);
   const isDirectLan = ref(false);
+  const isAirGappedMeshActive = ref(false);
   const isQuotaAlertDismissed = ref(false);
   const activeRoomId = ref<string | null>(null);
   const lanPeers = ref<Record<string, LanPeer>>({});
+  const wifiDirectPeers = ref<WifiDirectPeer[]>([]);
+  const blePeers = ref<Record<string, BlePeer>>({});
   let lanInterval: ReturnType<typeof setInterval> | null = null;
 
   let signalingClient: SignalingClient | null = null;
@@ -350,6 +358,11 @@ export const useNetworkStore = defineStore("network", () => {
       signalingClient.sendChatMessage(recipientFingerprint, payload);
     }
 
+    // Also transmit via Air-Gapped Wi-Fi Direct if active
+    if (nativeService.isAndroid && isAirGappedMeshActive.value) {
+      nativeService.sendWifiDirectMessage(JSON.stringify(payload)).catch(() => {});
+    }
+
     const storedMsg: StoredMessage = {
       id: messageId,
       conversationId: targetConvId,
@@ -393,14 +406,97 @@ export const useNetworkStore = defineStore("network", () => {
     await nativeService.stopLanDiscovery();
   }
 
+  function handleIncomingMeshPayload(rawText: string, fallbackSender: string) {
+    try {
+      const msg = JSON.parse(rawText) as Record<string, unknown>;
+      const senderFp = (msg.senderFingerprint as string) || fallbackSender;
+      const chatStore = useChatStore();
+      chatStore.appendMessage({
+        id: (msg.id as string) || `m_${Date.now()}`,
+        conversationId: (msg.conversationId as string) || `conv-${senderFp}`,
+        senderFingerprint: senderFp,
+        recipientFingerprint: msg.recipientFingerprint as string | undefined,
+        content: (msg.content as string) || "",
+        contentType: (msg.contentType as MessageType) || MessageType.TEXT,
+        timestamp: (msg.timestamp as number) || Date.now(),
+        deliveryState: DeliveryState.DELIVERED,
+        isOutgoing: false,
+      });
+      nativeService.hapticFeedback();
+      nativeService.notifyMessage(
+        `CampusMesh Air-Gapped (${senderFp.slice(0, 8)})`,
+        (msg.content as string) || "Air-Gapped Mesh message",
+        (msg.conversationId as string) || `conv-${senderFp}`,
+      );
+    } catch {
+      // Ignore unparseable raw frame
+    }
+  }
+
+  async function startAirGappedMesh(localFingerprint: string, displayName: string) {
+    isAirGappedMeshActive.value = true;
+    await startLanDiscovery(localFingerprint, displayName);
+
+    if (nativeService.isAndroid) {
+      // 1. Wi-Fi Direct
+      await nativeService.startWifiDirectDiscovery(
+        (peers) => {
+          wifiDirectPeers.value = peers;
+        },
+        (msg, remoteAddress) => {
+          handleIncomingMeshPayload(msg, `wfd_${remoteAddress.slice(0, 6)}`);
+        },
+      );
+
+      // 2. BLE Mesh
+      await nativeService.startBleMesh(
+        localFingerprint,
+        displayName,
+        (peer) => {
+          blePeers.value = {
+            ...blePeers.value,
+            [peer.deviceAddress]: peer,
+          };
+        },
+        (msg, senderAddress) => {
+          handleIncomingMeshPayload(msg, `ble_${senderAddress.slice(0, 6)}`);
+        },
+      );
+    }
+  }
+
+  async function stopAirGappedMesh() {
+    isAirGappedMeshActive.value = false;
+    await stopLanDiscovery();
+    if (nativeService.isAndroid) {
+      await nativeService.stopWifiDirectDiscovery();
+      await nativeService.stopBleMesh();
+    }
+  }
+
+  async function connectWifiDirect(deviceAddress: string) {
+    if (nativeService.isAndroid) {
+      await nativeService.connectWifiDirect(deviceAddress);
+    }
+  }
+
+  async function sendBleDirect(deviceAddress: string, message: string) {
+    if (nativeService.isAndroid) {
+      await nativeService.sendBleMessage(deviceAddress, message);
+    }
+  }
+
   return {
     isOnline,
     signalingState,
     peerState,
     isDirectLan,
+    isAirGappedMeshActive,
     isQuotaAlertDismissed,
     activeRoomId,
     lanPeers,
+    wifiDirectPeers,
+    blePeers,
     setOnline,
     setSignalingState,
     setPeerState,
@@ -417,5 +513,9 @@ export const useNetworkStore = defineStore("network", () => {
     sendChatMessage,
     startLanDiscovery,
     stopLanDiscovery,
+    startAirGappedMesh,
+    stopAirGappedMesh,
+    connectWifiDirect,
+    sendBleDirect,
   };
 });

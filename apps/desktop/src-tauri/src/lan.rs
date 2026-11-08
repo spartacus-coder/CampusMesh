@@ -80,3 +80,4 @@ impl LanDiscoveryEngine {
         self.is_running.store(false, Ordering::SeqCst);
     }
 }
+

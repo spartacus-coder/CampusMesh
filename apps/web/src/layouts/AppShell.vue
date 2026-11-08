@@ -50,18 +50,26 @@ function handleNavigate(path: string) {
   router.push(path);
 }
 
-function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
-  const canonicalId = `conv-${peer.fingerprint}`;
+const totalNearbyCount = computed(() => {
+  return (
+    Object.keys(networkStore.lanPeers).length +
+    networkStore.wifiDirectPeers.length +
+    Object.keys(networkStore.blePeers).length
+  );
+});
+
+function selectAirGappedPeer(peer: { id: string; name: string; tag: string }) {
+  const canonicalId = `conv-${peer.id}`;
   let conv = chatStore.conversations.find(
-    (c) => c.peerFingerprint === peer.fingerprint,
+    (c) => c.id === canonicalId || c.peerFingerprint === peer.id,
   );
   if (!conv) {
     conv = {
       id: canonicalId,
-      name: peer.displayName,
-      peerFingerprint: peer.fingerprint,
+      name: peer.name,
+      peerFingerprint: peer.id,
       isGroup: false,
-      lastMessagePreview: "Discovered via direct campus Wi-Fi beacon",
+      lastMessagePreview: `Discovered via ${peer.tag}`,
       lastMessageTimestamp: Date.now(),
       unreadCount: 0,
       isPinned: false,
@@ -71,6 +79,14 @@ function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
   }
   chatStore.selectConversation(conv.id);
   networkStore.setDirectLan(true);
+}
+
+function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
+  selectAirGappedPeer({
+    id: peer.fingerprint,
+    name: peer.displayName,
+    tag: "0ms Local Wi-Fi",
+  });
 }
 </script>
 
@@ -187,19 +203,20 @@ function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
           </div>
         </div>
 
-        <!-- Discovered Local LAN Peers Header -->
+        <!-- Discovered Air-Gapped Campus Radios (Local LAN, Wi-Fi Direct, BLE Mesh) -->
         <div
-          v-if="Object.keys(networkStore.lanPeers).length > 0"
+          v-if="totalNearbyCount > 0"
           class="px-3 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 select-none shrink-0"
         >
           <div class="flex items-center justify-between mb-1.5">
             <span class="font-bold flex items-center gap-1.5">
               <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Nearby on Campus ({{ Object.keys(networkStore.lanPeers).length }})
+              Nearby on Campus ({{ totalNearbyCount }})
             </span>
-            <span class="text-[10px] opacity-75">Direct Wi-Fi</span>
+            <span class="text-[10px] opacity-75">Air-Gapped Radios</span>
           </div>
           <div class="space-y-1">
+            <!-- Local LAN (Zero-Server UDP Multicast) -->
             <div
               v-for="peer in networkStore.lanPeers"
               :key="peer.fingerprint"
@@ -211,6 +228,34 @@ function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
                 <span class="font-medium truncate text-textPrimary text-xs">{{ peer.displayName }}</span>
               </div>
               <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">0ms LAN</span>
+            </div>
+
+            <!-- Wi-Fi Direct (High-Throughput P2P) -->
+            <div
+              v-for="peer in networkStore.wifiDirectPeers"
+              :key="peer.deviceAddress"
+              class="flex items-center justify-between p-1.5 rounded-lg bg-surface/80 border border-cyan-500/30 hover:bg-surface cursor-pointer transition-colors"
+              @click="selectAirGappedPeer({ id: peer.deviceAddress, name: peer.deviceName || 'Wi-Fi Direct Peer', tag: 'Wi-Fi Direct' })"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <Avatar :name="peer.deviceName || 'Wi-Fi Direct'" size="sm" :is-online="true" />
+                <span class="font-medium truncate text-textPrimary text-xs">{{ peer.deviceName || 'Wi-Fi Direct Peer' }}</span>
+              </div>
+              <span class="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono">Wi-Fi P2P</span>
+            </div>
+
+            <!-- BLE Mesh (Ultra-Low Power Off-Grid) -->
+            <div
+              v-for="peer in networkStore.blePeers"
+              :key="peer.deviceAddress"
+              class="flex items-center justify-between p-1.5 rounded-lg bg-surface/80 border border-indigo-500/30 hover:bg-surface cursor-pointer transition-colors"
+              @click="selectAirGappedPeer({ id: peer.fingerprintHash || peer.deviceAddress, name: peer.deviceName || 'BLE Peer', tag: 'BLE Mesh' })"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <Avatar :name="peer.deviceName || 'BLE Mesh'" size="sm" :is-online="true" />
+                <span class="font-medium truncate text-textPrimary text-xs">{{ peer.deviceName || 'BLE Peer' }}</span>
+              </div>
+              <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">BLE Mesh</span>
             </div>
           </div>
         </div>
