@@ -33,6 +33,7 @@ const statusConfig = computed(() => {
     };
   }
 
+  // 1. Direct WebRTC P2P DataChannel connected
   if (props.peerState === PeerConnectionState.CONNECTED) {
     return {
       text: "Direct P2P Encrypted Channel Connected",
@@ -42,12 +43,28 @@ const statusConfig = computed(() => {
     };
   }
 
-  if (
-    props.peerState === PeerConnectionState.CONNECTING ||
-    props.signalingState === SignalingState.CONNECTING
-  ) {
+  // 2. Encrypted Cloud Signaling Relay is live: user CAN message immediately!
+  if (props.signalingState === SignalingState.CONNECTED) {
+    if (props.peerState === PeerConnectionState.CONNECTING) {
+      return {
+        text: "Encrypted Relay Active (P2P Negotiating...)",
+        color: "bg-primary/10 text-primary border-primary/20",
+        icon: Wifi,
+        spinning: false,
+      };
+    }
     return {
-      text: "Establishing WebRTC Connection...",
+      text: "Encrypted Relay Active — Ready to Message",
+      color: "bg-success/10 text-success border-success/20",
+      icon: Wifi,
+      spinning: false,
+    };
+  }
+
+  // 3. Signaling is actively connecting
+  if (props.signalingState === SignalingState.CONNECTING) {
+    return {
+      text: "Connecting to Encrypted Mesh Network...",
       color: "bg-primary/10 text-primary border-primary/20",
       icon: RefreshCw,
       spinning: true,
@@ -56,15 +73,15 @@ const statusConfig = computed(() => {
 
   if (props.peerState === PeerConnectionState.FAILED) {
     return {
-      text: "Direct P2P Traversal Failed (Use Token/LAN)",
-      color: "bg-destructive/10 text-destructive border-destructive/20",
+      text: "Direct P2P Traversal Failed — Relay Active",
+      color: "bg-warning/10 text-warning border-warning/20",
       icon: AlertCircle,
       spinning: false,
     };
   }
 
   return {
-    text: "Waiting for Peer to Connect",
+    text: "Offline / Waiting for Connection",
     color: "bg-surface-subtle text-textSecondary border-border",
     icon: WifiOff,
     spinning: false,

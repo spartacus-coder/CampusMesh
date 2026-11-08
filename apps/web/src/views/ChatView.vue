@@ -304,7 +304,7 @@ function handleStartVideoCall() {
     </div>
   </div>
 
-  <div v-else class="flex h-full w-full overflow-hidden relative">
+  <div v-else class="flex flex-col h-full w-full min-h-0 overflow-hidden relative">
     <!-- Main Chat Column -->
     <div
       class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background"
@@ -415,6 +415,7 @@ function handleStartVideoCall() {
 
       <!-- Connection Status Bar for active session -->
       <ConnectionStatusBar
+        class="shrink-0"
         :signaling-state="networkStore.signalingState"
         :peer-state="networkStore.peerState"
         :is-direct-lan="networkStore.isDirectLan"
@@ -581,7 +582,7 @@ function handleStartVideoCall() {
 
       <!-- Message Composer Bar -->
       <footer
-        class="p-2.5 sm:p-3 border-t border-border bg-surface shrink-0 z-20 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)+0.5rem))]"
+        class="p-2 sm:p-2.5 border-t border-border bg-surface shrink-0 z-20 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       >
         <form
           class="flex items-center gap-1.5 sm:gap-2 max-w-4xl mx-auto"

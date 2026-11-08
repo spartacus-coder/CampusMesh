@@ -24,19 +24,19 @@
 }
 
 .dark {
-  --cm-background: #090d14;
-  --cm-surface: #111722;
-  --cm-surface-subtle: #192231;
-  --cm-surface-hover: #222e42;
-  --cm-surface-active: #2a3952;
-  --cm-border: #1e293b;
-  --cm-border-subtle: #162030;
+  --cm-background: #0b0f17;
+  --cm-surface: #131926;
+  --cm-surface-subtle: #1c2436;
+  --cm-surface-hover: #253046;
+  --cm-surface-active: #2e3c56;
+  --cm-border: #232d42;
+  --cm-border-subtle: #182030;
   --cm-primary: #3b82f6;
   --cm-primary-hover: #60a5fa;
   --cm-primary-foreground: #ffffff;
   --cm-text-primary: #f8fafc;
-  --cm-text-secondary: #94a3b8;
-  --cm-text-muted: #64748b;
+  --cm-text-secondary: #a0aec0;
+  --cm-text-muted: #718096;
   --cm-accent: #8b5cf6;
   --cm-destructive: #ef4444;
   --cm-success: #10b981;

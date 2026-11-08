@@ -29,8 +29,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AppShell />
-  <IdentityModal
-    v-if="!identityStore.isUnlocked || identityStore.mnemonicBackupPhrase"
-  />
+  <div class="h-full w-full overflow-hidden flex flex-col">
+    <AppShell />
+    <IdentityModal
+      v-if="!identityStore.isUnlocked || identityStore.mnemonicBackupPhrase"
+    />
+  </div>
 </template>

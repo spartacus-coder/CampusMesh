@@ -53,7 +53,7 @@ function handleNavigate(path: string) {
 
 <template>
   <div
-    class="flex h-screen h-[100dvh] max-h-[100dvh] w-screen flex-col bg-background text-textPrimary overflow-hidden font-sans select-none"
+    class="flex h-full w-full max-h-full flex-col bg-background text-textPrimary overflow-hidden font-sans select-none"
   >
     <!-- Level 1 System Banners -->
     <OfflineBanner v-if="!networkStore.isOnline" />
@@ -69,10 +69,10 @@ function handleNavigate(path: string) {
     <div class="flex flex-1 min-h-0 overflow-hidden relative">
       <!-- Desktop Left Navigation Rail (Hidden on mobile) -->
       <aside
-        class="hidden md:flex w-16 flex-col items-center justify-between border-r border-border bg-surface py-4 z-20 shrink-0"
+        class="hidden md:flex w-16 flex-col items-center justify-between border-r border-border bg-surface py-2.5 z-20 shrink-0 overflow-y-auto"
         aria-label="Desktop Navigation Rail"
       >
-        <div class="flex flex-col items-center gap-6 w-full">
+        <div class="flex flex-col items-center gap-4 w-full">
           <!-- Logo / Brand Glyph -->
           <div
             class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white font-bold shadow-md shadow-primary/20 cursor-pointer active:scale-95 transition-transform"
@@ -84,13 +84,13 @@ function handleNavigate(path: string) {
 
           <!-- Main Nav Actions -->
           <nav
-            class="flex flex-col items-center gap-2 w-full px-2"
+            class="flex flex-col items-center gap-1.5 w-full px-2"
             role="navigation"
           >
             <button
               v-for="item in navItems"
               :key="item.id"
-              class="relative flex h-10 w-10 items-center justify-center rounded-xl text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
+              class="relative flex h-9 w-9 items-center justify-center rounded-xl text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
               :class="{
                 'bg-primary/10 text-primary font-semibold':
                   route.path === item.path,
@@ -98,23 +98,23 @@ function handleNavigate(path: string) {
               :title="item.label"
               @click="handleNavigate(item.path)"
             >
-              <component :is="item.icon" class="h-5 w-5" />
+              <component :is="item.icon" class="h-4 w-4" />
             </button>
           </nav>
         </div>
 
         <!-- Footer Utilities (Command Palette & Theme Toggle) -->
-        <div class="flex flex-col items-center gap-3 w-full px-2">
+        <div class="flex flex-col items-center gap-2 w-full px-2">
           <button
-            class="flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
+            class="flex h-8 w-8 items-center justify-center rounded-lg text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
             title="Command Palette (Cmd+K)"
             @click="isCommandPaletteOpen = true"
           >
             <Command class="h-4 w-4" />
           </button>
           <button
-            class="flex h-9 w-9 items-center justify-center rounded-lg text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
-            title="Toggle Dark/Light/High-Contrast Theme"
+            class="flex h-8 w-8 items-center justify-center rounded-lg text-textSecondary hover:bg-surface-hover hover:text-textPrimary transition-colors"
+            title="Toggle Dark/Light Theme"
             @click="themeStore.toggleTheme"
           >
             <Sun v-if="themeStore.currentTheme === 'dark'" class="h-4 w-4" />
@@ -132,7 +132,7 @@ function handleNavigate(path: string) {
       <!-- Desktop Sidebar: Conversations Selector Pane -->
       <aside
         v-if="route.path === '/'"
-        class="hidden md:flex w-80 flex-col border-r border-border bg-surface shrink-0 z-10"
+        class="hidden md:flex w-80 flex-col border-r border-border bg-surface shrink-0 z-10 h-full min-h-0 overflow-hidden"
         aria-label="Conversation List"
       >
         <!-- Sidebar Header -->
@@ -201,6 +201,7 @@ function handleNavigate(path: string) {
 
         <!-- Quick Status Bar -->
         <ConnectionStatusBar
+          class="shrink-0"
           :signaling-state="networkStore.signalingState"
           :peer-state="networkStore.peerState"
           :is-direct-lan="networkStore.isDirectLan"
