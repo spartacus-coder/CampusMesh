@@ -53,4 +53,3 @@ describe("CampusMesh Desktop Target Suite", () => {
     expect(isRestored).toBe(false);
   });
 });
-

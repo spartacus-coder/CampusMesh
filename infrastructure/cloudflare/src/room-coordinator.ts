@@ -278,13 +278,19 @@ export class RoomCoordinator {
   private async forwardOrDeposit(senderFp: string, msg: SignalingRoomMessage) {
     if (!msg.targetFingerprint) return;
 
-    const coordinatorBinding = (this.env as Record<string, unknown>).ROOM_COORDINATOR as
-      | { idFromName(name: string): unknown; get(id: unknown): { fetch(req: Request): Promise<Response> } }
+    const coordinatorBinding = (this.env as Record<string, unknown>)
+      .ROOM_COORDINATOR as
+      | {
+          idFromName(name: string): unknown;
+          get(id: unknown): { fetch(req: Request): Promise<Response> };
+        }
       | undefined;
 
     if (coordinatorBinding) {
       try {
-        const targetId = coordinatorBinding.idFromName(`user_${msg.targetFingerprint}`);
+        const targetId = coordinatorBinding.idFromName(
+          `user_${msg.targetFingerprint}`,
+        );
         const targetStub = coordinatorBinding.get(targetId);
         await targetStub.fetch(
           new Request("https://internal/deliver", {

@@ -81,10 +81,15 @@ function startChatWithContact(contact: Contact) {
       class="flex h-14 sm:h-16 items-center justify-between border-b border-border bg-surface px-4 sm:px-6 shrink-0"
     >
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-        <h1 class="text-sm sm:text-base font-bold text-textPrimary tracking-tight truncate">
+        <h1
+          class="text-sm sm:text-base font-bold text-textPrimary tracking-tight truncate"
+        >
           Contacts
         </h1>
-        <Badge variant="outline" class="text-[10px] sm:text-xs font-mono shrink-0">
+        <Badge
+          variant="outline"
+          class="text-[10px] sm:text-xs font-mono shrink-0"
+        >
           {{ contactsStore.contacts.length }}
         </Badge>
       </div>
@@ -177,7 +182,9 @@ function startChatWithContact(contact: Contact) {
     </div>
 
     <!-- Contact List -->
-    <div class="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-2.5">
+    <div
+      class="flex-1 overflow-y-auto p-4 sm:p-6 max-w-4xl mx-auto w-full space-y-2.5"
+    >
       <!-- Empty State -->
       <div
         v-if="contactsStore.filteredContacts.length === 0"

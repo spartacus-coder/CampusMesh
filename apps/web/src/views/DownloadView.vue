@@ -70,7 +70,9 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
 </script>
 
 <template>
-  <div class="h-full w-full overflow-y-auto bg-background text-textPrimary p-4 md:p-8">
+  <div
+    class="h-full w-full overflow-y-auto bg-background text-textPrimary p-4 md:p-8"
+  >
     <div class="max-w-4xl mx-auto flex flex-col gap-8 pb-12">
       <!-- Hero Header -->
       <header class="flex flex-col items-center text-center gap-3">
@@ -80,7 +82,9 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
           >
             CM
           </div>
-          <span class="text-xs uppercase tracking-wider font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
+          <span
+            class="text-xs uppercase tracking-wider font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full"
+          >
             v1.0.0 Production Release
           </span>
         </div>
@@ -97,32 +101,49 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
       <section
         class="border-2 border-primary/40 bg-surface rounded-2xl p-6 md:p-8 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden"
       >
-        <div class="absolute -right-12 -top-12 h-40 w-40 bg-primary/10 rounded-full blur-2xl pointer-events-none" />
+        <div
+          class="absolute -right-12 -top-12 h-40 w-40 bg-primary/10 rounded-full blur-2xl pointer-events-none"
+        />
 
         <div class="flex items-start gap-4">
           <div class="p-3.5 rounded-2xl bg-primary/10 text-primary shrink-0">
-            <Monitor v-if="detectedOS === 'windows' || detectedOS === 'macos' || detectedOS === 'linux'" class="h-8 w-8" />
-            <Smartphone v-else-if="detectedOS === 'android' || detectedOS === 'ios'" class="h-8 w-8" />
+            <Monitor
+              v-if="
+                detectedOS === 'windows' ||
+                detectedOS === 'macos' ||
+                detectedOS === 'linux'
+              "
+              class="h-8 w-8"
+            />
+            <Smartphone
+              v-else-if="detectedOS === 'android' || detectedOS === 'ios'"
+              class="h-8 w-8"
+            />
             <Globe v-else class="h-8 w-8" />
           </div>
 
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center gap-2">
               <Badge variant="success">Compatible with your device</Badge>
-              <span class="text-xs text-textMuted font-mono">Auto-detected</span>
+              <span class="text-xs text-textMuted font-mono"
+                >Auto-detected</span
+              >
             </div>
             <h2 class="text-xl md:text-2xl font-bold">
               CampusMesh for {{ osDisplayName }}
             </h2>
             <p class="text-sm text-textSecondary max-w-md">
               <template v-if="detectedOS === 'windows'">
-                Native Tauri 2 desktop app with NSIS installer, deep linking (campusmesh://), and lightweight performance.
+                Native Tauri 2 desktop app with NSIS installer, deep linking
+                (campusmesh://), and lightweight performance.
               </template>
               <template v-else-if="detectedOS === 'android'">
-                Native Capacitor 8 Android app with Wi-Fi multicast lock for offline LAN peer discovery.
+                Native Capacitor 8 Android app with Wi-Fi multicast lock for
+                offline LAN peer discovery.
               </template>
               <template v-else>
-                Universal Progressive Web App (PWA) with full offline support and instant browser pairing.
+                Universal Progressive Web App (PWA) with full offline support
+                and instant browser pairing.
               </template>
             </p>
           </div>
@@ -173,7 +194,8 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
               </div>
               <h3 class="text-lg font-bold">Windows (x64)</h3>
               <p class="text-xs text-textSecondary leading-relaxed">
-                Tauri 2 NSIS installer package. Native tray integration, secure storage, and hardware acceleration.
+                Tauri 2 NSIS installer package. Native tray integration, secure
+                storage, and hardware acceleration.
               </p>
               <div class="flex flex-col gap-1 text-xs text-textMuted font-mono">
                 <span>Requirements: Windows 10/11</span>
@@ -206,7 +228,8 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
               </div>
               <h3 class="text-lg font-bold">Android (APK)</h3>
               <p class="text-xs text-textSecondary leading-relaxed">
-                Capacitor 8 native Android application with foreground background service and Wi-Fi multicast for offline mesh.
+                Capacitor 8 native Android application with foreground
+                background service and Wi-Fi multicast for offline mesh.
               </p>
               <div class="flex flex-col gap-1 text-xs text-textMuted font-mono">
                 <span>Requirements: Android 8.0+</span>
@@ -239,7 +262,8 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
               </div>
               <h3 class="text-lg font-bold">Web Application</h3>
               <p class="text-xs text-textSecondary leading-relaxed">
-                Zero-install Progressive Web App. Runs in any modern browser with service workers and IndexedDB persistence.
+                Zero-install Progressive Web App. Runs in any modern browser
+                with service workers and IndexedDB persistence.
               </p>
               <div class="flex flex-col gap-1 text-xs text-textMuted font-mono">
                 <span>Browsers: Chrome, Firefox, Safari</span>
@@ -272,12 +296,15 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
           <div class="flex flex-col gap-1">
             <h3 class="text-lg font-bold">Install on Mobile or Desktop</h3>
             <p class="text-sm text-textSecondary max-w-lg">
-              Scan this QR code with your mobile camera or another device to open the web app instantly or download the Android APK.
+              Scan this QR code with your mobile camera or another device to
+              open the web app instantly or download the Android APK.
             </p>
           </div>
         </div>
 
-        <div class="p-3 bg-white rounded-xl shadow-md shrink-0 flex items-center justify-center">
+        <div
+          class="p-3 bg-white rounded-xl shadow-md shrink-0 flex items-center justify-center"
+        >
           <img
             :src="`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(webAppUrl)}`"
             alt="CampusMesh Mobile QR"
@@ -288,27 +315,35 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
 
       <!-- Key Zero-Cost Principles Checklist -->
       <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="flex items-start gap-3 p-4 border border-border bg-surface rounded-xl">
+        <div
+          class="flex items-start gap-3 p-4 border border-border bg-surface rounded-xl"
+        >
           <ShieldCheck class="h-5 w-5 text-success shrink-0 mt-0.5" />
           <div class="flex flex-col">
             <h4 class="text-sm font-semibold">Double Ratchet E2EE</h4>
             <p class="text-xs text-textSecondary">
-              End-to-end encrypted with Forward Secrecy and Post-Compromise Security.
+              End-to-end encrypted with Forward Secrecy and Post-Compromise
+              Security.
             </p>
           </div>
         </div>
 
-        <div class="flex items-start gap-3 p-4 border border-border bg-surface rounded-xl">
+        <div
+          class="flex items-start gap-3 p-4 border border-border bg-surface rounded-xl"
+        >
           <HardDrive class="h-5 w-5 text-primary shrink-0 mt-0.5" />
           <div class="flex flex-col">
             <h4 class="text-sm font-semibold">100% Local-First</h4>
             <p class="text-xs text-textSecondary">
-              Keys, contacts, and message history remain exclusively on your device.
+              Keys, contacts, and message history remain exclusively on your
+              device.
             </p>
           </div>
         </div>
 
-        <div class="flex items-start gap-3 p-4 border border-border bg-surface rounded-xl">
+        <div
+          class="flex items-start gap-3 p-4 border border-border bg-surface rounded-xl"
+        >
           <Zap class="h-5 w-5 text-accent shrink-0 mt-0.5" />
           <div class="flex flex-col">
             <h4 class="text-sm font-semibold">$0.00/Month Zero-Cost</h4>
@@ -320,7 +355,9 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
       </section>
 
       <!-- Footer Info -->
-      <footer class="flex flex-col md:flex-row items-center justify-between text-xs text-textMuted border-t border-border pt-6 gap-3">
+      <footer
+        class="flex flex-col md:flex-row items-center justify-between text-xs text-textMuted border-t border-border pt-6 gap-3"
+      >
         <span>CampusMesh v1.0.0 — Licensed under MIT</span>
         <div class="flex items-center gap-4">
           <a
@@ -331,7 +368,10 @@ const webAppUrl = "https://spartacus-coder.github.io/CampusMesh/";
           >
             GitHub Releases <ExternalLink class="h-3 w-3" />
           </a>
-          <router-link to="/settings" class="hover:text-textPrimary transition-colors">
+          <router-link
+            to="/settings"
+            class="hover:text-textPrimary transition-colors"
+          >
             App Settings
           </router-link>
         </div>

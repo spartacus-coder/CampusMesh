@@ -127,13 +127,18 @@ export const useNetworkStore = defineStore("network", () => {
 
       signalingClient.onChatMessage = (_senderFp, data) => {
         try {
-          const msg = typeof data === "string" ? JSON.parse(data) : (data as Record<string, unknown>);
+          const msg =
+            typeof data === "string"
+              ? JSON.parse(data)
+              : (data as Record<string, unknown>);
           const chatStore = useChatStore();
           chatStore.appendMessage({
             id: (msg.id as string) || `m_${Date.now()}`,
-            conversationId: (msg.conversationId as string) || `conv-${msg.senderFingerprint}`,
+            conversationId:
+              (msg.conversationId as string) || `conv-${msg.senderFingerprint}`,
             senderFingerprint: (msg.senderFingerprint as string) || _senderFp,
-            recipientFingerprint: msg.recipientFingerprint as string | undefined,
+            recipientFingerprint: msg.recipientFingerprint as
+              string | undefined,
             content: (msg.content as string) || "",
             contentType: (msg.contentType as MessageType) || MessageType.TEXT,
             timestamp: (msg.timestamp as number) || Date.now(),
@@ -144,7 +149,10 @@ export const useNetworkStore = defineStore("network", () => {
             navigator.vibrate(40);
           }
         } catch (err) {
-          console.warn("Failed to process incoming signaling chat message:", err);
+          console.warn(
+            "Failed to process incoming signaling chat message:",
+            err,
+          );
         }
       };
 
@@ -157,9 +165,15 @@ export const useNetworkStore = defineStore("network", () => {
             const msg = JSON.parse(r.envelope) as Record<string, unknown>;
             chatStore.appendMessage({
               id: (msg.id as string) || `m_${Date.now()}`,
-              conversationId: (msg.conversationId as string) || `conv-${msg.senderFingerprint || r.senderFingerprint}`,
-              senderFingerprint: (msg.senderFingerprint as string) || r.senderFingerprint || "peer",
-              recipientFingerprint: msg.recipientFingerprint as string | undefined,
+              conversationId:
+                (msg.conversationId as string) ||
+                `conv-${msg.senderFingerprint || r.senderFingerprint}`,
+              senderFingerprint:
+                (msg.senderFingerprint as string) ||
+                r.senderFingerprint ||
+                "peer",
+              recipientFingerprint: msg.recipientFingerprint as
+                string | undefined,
               content: (msg.content as string) || "",
               contentType: (msg.contentType as MessageType) || MessageType.TEXT,
               timestamp: (msg.timestamp as number) || Date.now(),

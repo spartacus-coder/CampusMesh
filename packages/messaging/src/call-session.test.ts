@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import {
-  CallSessionManager,
-  CallState,
-  type CallSignal,
-} from "./call-session";
+import { CallSessionManager, CallState, type CallSignal } from "./call-session";
 
 describe("CallSessionManager WebRTC Calling Suite", () => {
   it("should initiate call, transition state, and dispatch call_offer signal", async () => {
@@ -124,4 +120,3 @@ describe("CallSessionManager WebRTC Calling Suite", () => {
     expect(manager.isVideoEnabled()).toBe(false);
   });
 });
-

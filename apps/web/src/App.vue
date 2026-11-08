@@ -11,7 +11,8 @@ const networkStore = useNetworkStore();
 const identityStore = useIdentityStore();
 
 watch(
-  () => [identityStore.isUnlocked, identityStore.identity?.fingerprint] as const,
+  () =>
+    [identityStore.isUnlocked, identityStore.identity?.fingerprint] as const,
   ([unlocked, fp]) => {
     if (unlocked && fp) {
       networkStore.connectUserSignaling(fp);

@@ -54,8 +54,9 @@ export class ContactManager {
         const parsed = JSON.parse(trimmed) as Record<string, unknown>;
         const fp = (parsed.fingerprint ?? parsed.fp) as string | undefined;
         const name = (parsed.displayName ?? parsed.name ?? "Peer") as string;
-        const ed = (parsed.ed25519PublicKey ?? parsed.ed25519 ?? parsed.edPk) as
-          string | undefined;
+        const ed = (parsed.ed25519PublicKey ??
+          parsed.ed25519 ??
+          parsed.edPk) as string | undefined;
         const x = (parsed.x25519PublicKey ?? parsed.x25519 ?? parsed.xPk) as
           string | undefined;
 

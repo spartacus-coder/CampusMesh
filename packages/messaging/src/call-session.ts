@@ -252,8 +252,7 @@ export class CallSessionManager {
   }
 
   public toggleAudio(enabled?: boolean): boolean {
-    this.isAudioMuted =
-      enabled !== undefined ? !enabled : !this.isAudioMuted;
+    this.isAudioMuted = enabled !== undefined ? !enabled : !this.isAudioMuted;
     if (this.localStream) {
       this.localStream.getAudioTracks().forEach((track) => {
         track.enabled = !this.isAudioMuted;
@@ -263,8 +262,7 @@ export class CallSessionManager {
   }
 
   public toggleVideo(enabled?: boolean): boolean {
-    this.isVideoMuted =
-      enabled !== undefined ? !enabled : !this.isVideoMuted;
+    this.isVideoMuted = enabled !== undefined ? !enabled : !this.isVideoMuted;
     if (this.localStream) {
       this.localStream.getVideoTracks().forEach((track) => {
         track.enabled = !this.isVideoMuted;

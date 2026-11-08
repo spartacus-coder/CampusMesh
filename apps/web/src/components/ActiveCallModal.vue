@@ -32,7 +32,11 @@ const callStore = useCallStore();
       <div
         class="relative flex flex-col items-center justify-center w-40 h-40 rounded-full bg-background border-2 border-primary/20 shadow-inner"
       >
-        <Avatar :name="callStore.peerName" size="xl" class="h-28 w-28 text-2xl" />
+        <Avatar
+          :name="callStore.peerName"
+          size="xl"
+          class="h-28 w-28 text-2xl"
+        />
         <div
           v-if="callStore.callState === CallState.CONNECTED"
           class="absolute bottom-1 right-2 h-4 w-4 rounded-full bg-emerald-500 border-2 border-surface animate-pulse"
@@ -94,4 +98,3 @@ const callStore = useCallStore();
     </div>
   </div>
 </template>
-

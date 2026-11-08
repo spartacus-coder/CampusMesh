@@ -120,7 +120,9 @@ function copyInviteLink() {
           >
             <Check v-if="isLinkCopied" class="h-3.5 w-3.5 text-success" />
             <Share2 v-else class="h-3.5 w-3.5 text-primary" />
-            <span>{{ isLinkCopied ? "Link Copied!" : "Copy Invite Link" }}</span>
+            <span>{{
+              isLinkCopied ? "Link Copied!" : "Copy Invite Link"
+            }}</span>
           </Button>
           <Button
             variant="outline"
@@ -153,7 +155,8 @@ function copyInviteLink() {
         </div>
 
         <p class="text-[11px] text-textMuted leading-relaxed">
-          Peers can scan this QR code using their camera or paste your invite link into Add Contact to establish an encrypted session.
+          Peers can scan this QR code using their camera or paste your invite
+          link into Add Contact to establish an encrypted session.
         </p>
       </div>
 

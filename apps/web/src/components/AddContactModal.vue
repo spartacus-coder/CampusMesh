@@ -154,7 +154,8 @@ function handleQrScanned(decodedText: string) {
     // Stop camera once scanned
     stopCamera();
   } else {
-    error.value = "Scanned QR code does not contain a valid CampusMesh identity.";
+    error.value =
+      "Scanned QR code does not contain a valid CampusMesh identity.";
   }
 }
 
@@ -198,7 +199,8 @@ async function handleSave() {
     return;
   }
   if (!fp || fp.length < 8) {
-    error.value = "Please provide a valid peer fingerprint (at least 8 characters).";
+    error.value =
+      "Please provide a valid peer fingerprint (at least 8 characters).";
     return;
   }
 
@@ -239,7 +241,9 @@ onUnmounted(() => {
       class="bg-surface border border-border rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-4 text-textPrimary relative"
     >
       <!-- Header -->
-      <div class="flex items-center justify-between border-b border-border pb-3">
+      <div
+        class="flex items-center justify-between border-b border-border pb-3"
+      >
         <div class="flex items-center gap-3">
           <div
             class="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
@@ -249,7 +253,8 @@ onUnmounted(() => {
           <div>
             <h2 class="text-base font-bold">Add Contact</h2>
             <p class="text-xs text-textMuted">
-              Add a peer by scanning their QR card, pasting invite, or entering details
+              Add a peer by scanning their QR card, pasting invite, or entering
+              details
             </p>
           </div>
         </div>
@@ -346,7 +351,9 @@ onUnmounted(() => {
           class="p-4 rounded-xl border border-success/40 bg-success/10 flex flex-col gap-2.5 animate-in fade-in"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-success flex items-center gap-1.5">
+            <span
+              class="text-xs font-bold text-success flex items-center gap-1.5"
+            >
               <CheckCircle class="h-4 w-4" />
               QR Code Successfully Scanned!
             </span>
@@ -359,12 +366,16 @@ onUnmounted(() => {
             </button>
           </div>
           <div>
-            <label class="text-[11px] font-medium text-textSecondary block mb-1">
+            <label
+              class="text-[11px] font-medium text-textSecondary block mb-1"
+            >
               Contact Alias / Display Name
             </label>
             <Input v-model="displayName" class="h-9 text-xs" />
           </div>
-          <div class="text-[11px] font-mono text-textMuted break-all bg-background/50 p-2 rounded-lg">
+          <div
+            class="text-[11px] font-mono text-textMuted break-all bg-background/50 p-2 rounded-lg"
+          >
             {{ parsedPreview.fingerprint }}
           </div>
           <div class="flex items-center gap-2 text-[11px] text-textSecondary">
@@ -373,8 +384,12 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <p v-if="!scanSuccess && !cameraError" class="text-[11px] text-center text-textMuted">
-          Point your device camera at the peer's Identity QR Card to scan automatically.
+        <p
+          v-if="!scanSuccess && !cameraError"
+          class="text-[11px] text-center text-textMuted"
+        >
+          Point your device camera at the peer's Identity QR Card to scan
+          automatically.
         </p>
       </div>
 
@@ -398,16 +413,25 @@ onUnmounted(() => {
           class="p-3.5 rounded-xl border border-primary/30 bg-primary/5 flex flex-col gap-2"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-primary flex items-center gap-1.5">
+            <span
+              class="text-xs font-bold text-primary flex items-center gap-1.5"
+            >
               <CheckCircle class="h-4 w-4" />
               Valid Identity Detected
             </span>
-            <Button size="sm" variant="outline" class="h-7 text-xs" @click="applyParsedPayload">
+            <Button
+              size="sm"
+              variant="outline"
+              class="h-7 text-xs"
+              @click="applyParsedPayload"
+            >
               Edit Details
             </Button>
           </div>
           <div>
-            <label class="text-[11px] font-medium text-textSecondary block mb-1">
+            <label
+              class="text-[11px] font-medium text-textSecondary block mb-1"
+            >
               Contact Alias
             </label>
             <Input v-model="displayName" class="h-8 text-xs" />
@@ -421,7 +445,8 @@ onUnmounted(() => {
           class="text-xs text-red-400 flex items-center gap-1.5"
         >
           <AlertCircle class="h-4 w-4" />
-          Unrecognized identity format. Try pasting the full link or raw fingerprint.
+          Unrecognized identity format. Try pasting the full link or raw
+          fingerprint.
         </p>
       </div>
 
@@ -485,10 +510,10 @@ onUnmounted(() => {
         <span class="text-[11px] text-textMuted">
           {{
             parsedPreview
-              ? 'Ready to save'
-              : activeTab === 'manual'
-                ? 'Fill required fields'
-                : 'Waiting for QR data'
+              ? "Ready to save"
+              : activeTab === "manual"
+                ? "Fill required fields"
+                : "Waiting for QR data"
           }}
         </span>
         <div class="flex items-center gap-2">
@@ -505,7 +530,8 @@ onUnmounted(() => {
             :disabled="
               isSubmitting ||
               (activeTab !== 'manual' && !parsedPreview) ||
-              (activeTab === 'manual' && (!displayName.trim() || !fingerprint.trim()))
+              (activeTab === 'manual' &&
+                (!displayName.trim() || !fingerprint.trim()))
             "
             class="gap-1.5"
             @click="handleSave"

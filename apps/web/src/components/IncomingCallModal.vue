@@ -21,7 +21,11 @@ const callStore = useCallStore();
       </Badge>
 
       <div class="relative">
-        <Avatar :name="callStore.peerName" size="xl" class="h-24 w-24 text-xl" />
+        <Avatar
+          :name="callStore.peerName"
+          size="xl"
+          class="h-24 w-24 text-xl"
+        />
         <div
           class="absolute -bottom-1 -right-1 h-7 w-7 rounded-full bg-primary flex items-center justify-center text-white shadow-md"
         >
@@ -35,7 +39,8 @@ const callStore = useCallStore();
           {{ callStore.peerName }}
         </h3>
         <p class="text-xs text-textMuted mt-0.5">
-          Incoming {{ callStore.callType === 'VIDEO' ? 'Video' : 'Voice' }} Call...
+          Incoming
+          {{ callStore.callType === "VIDEO" ? "Video" : "Voice" }} Call...
         </p>
       </div>
 
@@ -64,4 +69,3 @@ const callStore = useCallStore();
     </div>
   </div>
 </template>
-

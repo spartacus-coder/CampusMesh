@@ -200,7 +200,9 @@ function handleStartVideoCall() {
     </div>
 
     <!-- Mobile Conversation List -->
-    <div class="md:hidden flex flex-col h-full w-full bg-background overflow-hidden">
+    <div
+      class="md:hidden flex flex-col h-full w-full bg-background overflow-hidden"
+    >
       <!-- Mobile Header -->
       <header
         class="flex h-14 items-center justify-between border-b border-border bg-surface px-4 shrink-0"
@@ -245,9 +247,11 @@ function handleStartVideoCall() {
               <span class="text-sm font-semibold text-textPrimary truncate">{{
                 conv.name
               }}</span>
-              <span v-if="conv.lastMessageTimestamp" class="text-[10px] text-textMuted">{{
-                formatRelativeTime(conv.lastMessageTimestamp)
-              }}</span>
+              <span
+                v-if="conv.lastMessageTimestamp"
+                class="text-[10px] text-textMuted"
+                >{{ formatRelativeTime(conv.lastMessageTimestamp) }}</span
+              >
             </div>
             <p class="text-xs text-textSecondary truncate">
               {{ conv.lastMessagePreview }}
@@ -281,7 +285,9 @@ function handleStartVideoCall() {
 
   <div v-else class="flex h-full w-full overflow-hidden relative">
     <!-- Main Chat Column -->
-    <div class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background">
+    <div
+      class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background"
+    >
       <!-- Active Chat Header -->
       <header
         class="flex h-14 sm:h-16 items-center justify-between border-b border-border bg-surface px-3 sm:px-4 shrink-0 z-10"

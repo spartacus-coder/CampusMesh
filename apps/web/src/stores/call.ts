@@ -153,4 +153,3 @@ export const useCallStore = defineStore("call", () => {
     receiveSignal,
   };
 });
-

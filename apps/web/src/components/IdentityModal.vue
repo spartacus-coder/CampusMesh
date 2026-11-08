@@ -161,10 +161,14 @@ function completeOnboarding() {
           >
             <ShieldAlert class="h-5 w-5" />
           </div>
-          <h2 class="text-base sm:text-lg font-bold text-textPrimary tracking-tight">
+          <h2
+            class="text-base sm:text-lg font-bold text-textPrimary tracking-tight"
+          >
             Your 24-Word Recovery Phrase
           </h2>
-          <p class="text-xs text-textSecondary max-w-md mx-auto leading-relaxed">
+          <p
+            class="text-xs text-textSecondary max-w-md mx-auto leading-relaxed"
+          >
             CampusMesh is decentralized. There are no servers, emails, or
             passwords to reset your account. Write these down in order and store
             them securely offline.
@@ -179,12 +183,18 @@ function completeOnboarding() {
             :key="idx"
             class="flex items-center gap-1.5 py-1 px-2 rounded bg-surface border border-border min-w-0"
           >
-            <span class="text-textSecondary text-[10px] w-4 shrink-0">{{ idx + 1 }}.</span>
-            <span class="font-medium text-textPrimary truncate">{{ word }}</span>
+            <span class="text-textSecondary text-[10px] w-4 shrink-0"
+              >{{ idx + 1 }}.</span
+            >
+            <span class="font-medium text-textPrimary truncate">{{
+              word
+            }}</span>
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        <div
+          class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1"
+        >
           <Button
             variant="outline"
             size="sm"

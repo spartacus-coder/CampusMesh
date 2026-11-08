@@ -3,13 +3,6 @@
 
 fn main() {
     tauri::Builder::default()
-        .setup(|app| {
-            #[cfg(debug_assertions)]
-            {
-                let _window = tauri::Manager::get_webview_window(app, "main");
-            }
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running CampusMesh desktop application");
 }
