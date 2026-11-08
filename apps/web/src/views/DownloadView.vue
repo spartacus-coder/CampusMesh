@@ -61,13 +61,13 @@ const osDisplayName = computed(() => {
 });
 
 const githubReleaseUrl =
-  "https://github.com/spartacus-coder/CampusMesh/releases/tag/v1.0.0";
+  "https://github.com/spartacus-coder/CampusMesh/releases/latest";
 const windowsDownloadUrl =
-  "https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0_x64-setup.exe";
+  "https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-setup.exe";
 const windowsPortableUrl =
-  "https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0_portable.exe";
+  "https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-portable.exe";
 const androidDownloadUrl =
-  "https://github.com/spartacus-coder/CampusMesh/releases/download/v1.0.0/CampusMesh_1.0.0.apk";
+  "https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh.apk";
 const webAppUrl = "https://campusmesh.pages.dev";
 </script>
 

@@ -14,6 +14,8 @@ import {
   Lock,
   Copy,
   Check,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-vue-next";
 import { Button, Badge } from "@campusmesh/ui";
 import IdentityCardModal from "../components/IdentityCardModal.vue";
@@ -320,6 +322,38 @@ async function handleExportBackup() {
           Database Status:
           <strong class="text-textPrimary">Healthy (Dexie Engine)</strong>
         </span>
+      </div>
+    </section>
+
+    <!-- App Version & Updates Card -->
+    <section class="rounded-xl border border-border bg-surface p-5 space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <RefreshCw class="h-5 w-5 text-primary" />
+          <div>
+            <h2 class="text-sm font-semibold text-textPrimary">
+              App Version & Updates
+            </h2>
+            <p class="text-xs text-textSecondary">
+              Continuous zero-cost updates via GitHub Actions & Cloudflare.
+            </p>
+          </div>
+        </div>
+        <Badge variant="outline">v1.0.0</Badge>
+      </div>
+      <div class="flex items-center justify-between pt-2">
+        <span class="text-xs text-textSecondary">
+          Automated builds enabled for Web, Desktop (.exe), and Android (.apk)
+        </span>
+        <a
+          href="https://github.com/spartacus-coder/CampusMesh/releases/latest"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primaryHover font-medium transition-colors"
+        >
+          <span>Latest Release</span>
+          <ExternalLink class="h-3.5 w-3.5" />
+        </a>
       </div>
     </section>
 
