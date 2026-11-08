@@ -5,6 +5,7 @@ import { useNetworkStore } from "./stores/network";
 import { useIdentityStore } from "./stores/identity";
 import AppShell from "./layouts/AppShell.vue";
 import IdentityModal from "./components/IdentityModal.vue";
+import { nativeService } from "./services/native";
 
 const themeStore = useThemeStore();
 const networkStore = useNetworkStore();
@@ -25,6 +26,7 @@ onMounted(async () => {
   themeStore.initTheme();
   networkStore.initNetworkListeners();
   await identityStore.checkInitialization();
+  await nativeService.initNativeServices();
 });
 </script>
 

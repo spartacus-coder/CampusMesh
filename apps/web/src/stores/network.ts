@@ -8,6 +8,7 @@ import {
 } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import { useChatStore } from "./chat";
+import { nativeService } from "../services/native";
 import {
   SignalingClient,
   WebRtcPeerTransport,
@@ -88,9 +89,12 @@ export const useNetworkStore = defineStore("network", () => {
               deliveryState: DeliveryState.DELIVERED,
               isOutgoing: false,
             });
-            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-              navigator.vibrate(40);
-            }
+            nativeService.hapticFeedback();
+            nativeService.notifyMessage(
+              `CampusMesh (${peerFp.slice(0, 8)})`,
+              msg.content || "Encrypted message",
+              `conv-${peerFp}`,
+            );
           } catch (err) {
             console.warn("Failed to process incoming P2P message:", err);
           }
@@ -147,9 +151,12 @@ export const useNetworkStore = defineStore("network", () => {
             deliveryState: DeliveryState.DELIVERED,
             isOutgoing: false,
           });
-          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-            navigator.vibrate(40);
-          }
+          nativeService.hapticFeedback();
+          nativeService.notifyMessage(
+            `CampusMesh (${senderFp.slice(0, 8)})`,
+            (msg.content as string) || "Encrypted message",
+            `conv-${senderFp}`,
+          );
         } catch (err) {
           console.warn(
             "Failed to process incoming signaling chat message:",

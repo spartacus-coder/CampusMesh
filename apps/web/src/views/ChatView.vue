@@ -44,6 +44,7 @@ import {
 } from "../stores/files";
 import { useCallStore } from "../stores/call";
 import { useContactsStore } from "../stores/contacts";
+import { nativeService } from "../services/native";
 
 const chatStore = useChatStore();
 const networkStore = useNetworkStore();
@@ -146,6 +147,7 @@ function handleSendMessage() {
     };
     chatStore.appendMessage(newMsg);
   }
+  nativeService.hapticFeedback();
   inputText.value = "";
 }
 

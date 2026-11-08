@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "CampusMesh",
         "width": 1200,
         "height": 800,
