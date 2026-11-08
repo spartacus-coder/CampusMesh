@@ -30,6 +30,11 @@ jobs:
       - name: Install Rust Stable
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './apps/desktop/src-tauri -> target'
+
       - name: Install Dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -43,6 +48,9 @@ jobs:
         shell: pwsh
         run: |
           Get-ChildItem -Recurse apps/desktop/src-tauri/target/release/bundle
+          if (Test-Path apps/desktop/src-tauri/target/release/campusmesh-desktop.exe) {
+            Copy-Item apps/desktop/src-tauri/target/release/campusmesh-desktop.exe apps/desktop/src-tauri/target/release/bundle/nsis/CampusMesh_1.0.0_portable.exe -Force
+          }
 
       - name: Upload Windows NSIS Installer to Release
         uses: softprops/action-gh-release@v2
