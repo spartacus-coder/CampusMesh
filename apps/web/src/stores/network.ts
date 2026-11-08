@@ -8,7 +8,7 @@ import {
 } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import { useChatStore } from "./chat";
-import { nativeService } from "../services/native";
+import { nativeService, type LanPeer } from "../services/native";
 import {
   SignalingClient,
   WebRtcPeerTransport,
@@ -25,6 +25,8 @@ export const useNetworkStore = defineStore("network", () => {
   const isDirectLan = ref(false);
   const isQuotaAlertDismissed = ref(false);
   const activeRoomId = ref<string | null>(null);
+  const lanPeers = ref<Record<string, LanPeer>>({});
+  let lanInterval: ReturnType<typeof setInterval> | null = null;
 
   let signalingClient: SignalingClient | null = null;
   let peerTransport: WebRtcPeerTransport | null = null;
@@ -365,6 +367,32 @@ export const useNetworkStore = defineStore("network", () => {
     return storedMsg;
   }
 
+  async function startLanDiscovery(localFingerprint: string, displayName: string) {
+    if (!nativeService.isNative) return;
+
+    await nativeService.startLanDiscovery(localFingerprint, (peer) => {
+      lanPeers.value = {
+        ...lanPeers.value,
+        [peer.fingerprint]: peer,
+      };
+    });
+
+    // Broadcast immediate beacon, then recurring every 10s
+    await nativeService.broadcastLanBeacon(localFingerprint, displayName);
+    if (lanInterval) clearInterval(lanInterval);
+    lanInterval = setInterval(() => {
+      nativeService.broadcastLanBeacon(localFingerprint, displayName);
+    }, 10000);
+  }
+
+  async function stopLanDiscovery() {
+    if (lanInterval) {
+      clearInterval(lanInterval);
+      lanInterval = null;
+    }
+    await nativeService.stopLanDiscovery();
+  }
+
   return {
     isOnline,
     signalingState,
@@ -372,6 +400,7 @@ export const useNetworkStore = defineStore("network", () => {
     isDirectLan,
     isQuotaAlertDismissed,
     activeRoomId,
+    lanPeers,
     setOnline,
     setSignalingState,
     setPeerState,
@@ -386,5 +415,7 @@ export const useNetworkStore = defineStore("network", () => {
     acceptManualOffer,
     acceptManualAnswer,
     sendChatMessage,
+    startLanDiscovery,
+    stopLanDiscovery,
   };
 });

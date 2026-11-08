@@ -1,15 +1,37 @@
 /**
  * CampusMesh Native Platform Bridge
- * Coordinates between Desktop (Tauri 2 Rust), Mobile (Capacitor 8 Android), and Web PWA
+ * Coordinates between Desktop (Tauri 2 Rust + SQLite), Mobile (Capacitor 8 Android), and Web PWA
  */
 
-export interface NativeBridge {
-  isTauri: boolean;
-  isAndroid: boolean;
-  isNative: boolean;
-  initNativeServices: () => Promise<void>;
-  notifyMessage: (title: string, body: string, conversationId?: string) => Promise<void>;
-  hapticFeedback: () => Promise<void>;
+import type { StoredMessage } from "@campusmesh/storage";
+import { MessageType, DeliveryState } from "@campusmesh/shared-types";
+
+export interface LanPeer {
+  fingerprint: string;
+  displayName: string;
+  ip?: string;
+  port: number;
+  timestamp: number;
+}
+
+export interface NativeDbConversation {
+  id: string;
+  name: string;
+  peer_fingerprint?: string;
+  is_group: boolean;
+  last_message_preview?: string;
+  last_message_timestamp: number;
+  unread_count: number;
+  is_pinned: boolean;
+  is_archived: boolean;
+}
+
+export interface NativeDbContact {
+  fingerprint: string;
+  display_name: string;
+  safety_number?: string;
+  is_verified: boolean;
+  added_at: number;
 }
 
 interface CampusMeshNativePluginApi {
@@ -26,6 +48,18 @@ interface CampusMeshNativePluginApi {
     conversationId?: string;
   }) => Promise<unknown>;
   triggerHaptic?: () => Promise<unknown>;
+  startLanDiscovery?: (options: {
+    localFingerprint: string;
+  }) => Promise<unknown>;
+  stopLanDiscovery?: () => Promise<unknown>;
+  broadcastLanBeacon?: (options: {
+    fingerprint: string;
+    displayName: string;
+  }) => Promise<unknown>;
+  addListener?: (
+    eventName: string,
+    listenerFunc: (data: LanPeer) => void,
+  ) => Promise<unknown>;
   [key: string]: unknown;
 }
 
@@ -41,6 +75,33 @@ function getCampusMeshPlugin(): CampusMeshNativePluginApi | null {
     if (cap?.Plugins?.CampusMeshNative) {
       return cap.Plugins.CampusMeshNative as CampusMeshNativePluginApi;
     }
+  }
+  return null;
+}
+
+async function tauriInvoke<T>(
+  cmd: string,
+  args: Record<string, unknown> = {},
+): Promise<T | null> {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    __TAURI_INTERNALS__?: {
+      invoke?: (c: string, a: Record<string, unknown>) => Promise<T>;
+    };
+    __TAURI__?: {
+      core?: { invoke?: (c: string, a: Record<string, unknown>) => Promise<T> };
+    };
+  };
+
+  try {
+    if (w.__TAURI_INTERNALS__?.invoke) {
+      return await w.__TAURI_INTERNALS__.invoke(cmd, args);
+    }
+    if (w.__TAURI__?.core?.invoke) {
+      return await w.__TAURI__.core.invoke(cmd, args);
+    }
+  } catch (err) {
+    console.warn(`[CampusMesh Native] Tauri invoke '${cmd}' failed:`, err);
   }
   return null;
 }
@@ -100,12 +161,10 @@ export const nativeService = {
     body: string,
     conversationId?: string,
   ): Promise<void> {
-    // Do not alert if document is currently focused and active
     if (typeof document !== "undefined" && document.hasFocus()) {
       return;
     }
 
-    // A. Android Native via Custom Plugin
     if (this.isAndroid) {
       const nativePlugin = getCampusMeshPlugin();
       if (nativePlugin?.showNotification) {
@@ -125,7 +184,6 @@ export const nativeService = {
       }
     }
 
-    // B. Desktop (Tauri) & Web PWA Notification
     if (
       typeof window !== "undefined" &&
       "Notification" in window &&
@@ -162,5 +220,142 @@ export const nativeService = {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate(35);
     }
+  },
+
+  // === Zero-Server LAN Peer Discovery ===
+  async startLanDiscovery(
+    localFingerprint: string,
+    onPeerDiscovered: (peer: LanPeer) => void,
+  ): Promise<void> {
+    // A. Desktop (Tauri 2 Rust UDP Multicast)
+    if (this.isTauri) {
+      await tauriInvoke("lan_start_discovery", {
+        localFingerprint,
+      });
+
+      const w = window as unknown as {
+        __TAURI__?: {
+          event?: {
+            listen?: (
+              event: string,
+              handler: (e: { payload: LanPeer }) => void,
+            ) => Promise<() => void>;
+          };
+        };
+      };
+      if (w.__TAURI__?.event?.listen) {
+        await w.__TAURI__.event.listen("lan-peer-discovered", (e) => {
+          if (e?.payload) onPeerDiscovered(e.payload);
+        });
+      }
+      return;
+    }
+
+    // B. Mobile (Android Native MulticastSocket)
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.startLanDiscovery) {
+        await nativePlugin.startLanDiscovery({ localFingerprint });
+        if (nativePlugin.addListener) {
+          await nativePlugin.addListener(
+            "lanPeerDiscovered",
+            (peer: LanPeer) => {
+              if (peer) onPeerDiscovered(peer);
+            },
+          );
+        }
+      }
+    }
+  },
+
+  async broadcastLanBeacon(
+    fingerprint: string,
+    displayName: string,
+  ): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("lan_broadcast_beacon", {
+        beacon: {
+          fingerprint,
+          display_name: displayName,
+          port: 7777,
+          timestamp: Date.now(),
+        },
+      });
+      return;
+    }
+
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.broadcastLanBeacon) {
+        await nativePlugin.broadcastLanBeacon({ fingerprint, displayName });
+      }
+    }
+  },
+
+  async stopLanDiscovery(): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("lan_stop_discovery");
+      return;
+    }
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.stopLanDiscovery) {
+        await nativePlugin.stopLanDiscovery();
+      }
+    }
+  },
+
+  // === Native Desktop SQLite Vault Operations ===
+  async saveMessageToNativeDb(msg: StoredMessage): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("db_save_message", {
+        msg: {
+          id: msg.id,
+          conversation_id: msg.conversationId,
+          sender_fingerprint: msg.senderFingerprint,
+          recipient_fingerprint: msg.recipientFingerprint || null,
+          content: msg.content,
+          content_type: msg.contentType,
+          timestamp: msg.timestamp,
+          delivery_state: msg.deliveryState,
+          is_outgoing: msg.isOutgoing,
+        },
+      });
+    }
+  },
+
+  async getMessagesFromNativeDb(
+    conversationId: string,
+  ): Promise<StoredMessage[] | null> {
+    if (this.isTauri) {
+      const raw = await tauriInvoke<
+        Array<{
+          id: string;
+          conversation_id: string;
+          sender_fingerprint: string;
+          recipient_fingerprint: string | null;
+          content: string;
+          content_type: string;
+          timestamp: number;
+          delivery_state: string;
+          is_outgoing: boolean;
+        }>
+      >("db_get_messages", { conversationId });
+
+      if (raw) {
+        return raw.map((r) => ({
+          id: r.id,
+          conversationId: r.conversation_id,
+          senderFingerprint: r.sender_fingerprint,
+          recipientFingerprint: r.recipient_fingerprint || undefined,
+          content: r.content,
+          contentType: r.content_type as MessageType,
+          timestamp: r.timestamp,
+          deliveryState: r.delivery_state as DeliveryState,
+          isOutgoing: r.is_outgoing,
+        }));
+      }
+    }
+    return null;
   },
 };

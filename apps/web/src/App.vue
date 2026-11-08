@@ -17,6 +17,10 @@ watch(
   ([unlocked, fp]) => {
     if (unlocked && fp) {
       networkStore.connectUserSignaling(fp);
+      networkStore.startLanDiscovery(
+        fp,
+        identityStore.identity?.displayName || "Peer",
+      );
     }
   },
   { immediate: true },

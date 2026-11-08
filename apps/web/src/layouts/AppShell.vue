@@ -49,6 +49,29 @@ const navItems = [
 function handleNavigate(path: string) {
   router.push(path);
 }
+
+function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
+  const canonicalId = `conv-${peer.fingerprint}`;
+  let conv = chatStore.conversations.find(
+    (c) => c.peerFingerprint === peer.fingerprint,
+  );
+  if (!conv) {
+    conv = {
+      id: canonicalId,
+      name: peer.displayName,
+      peerFingerprint: peer.fingerprint,
+      isGroup: false,
+      lastMessagePreview: "Discovered via direct campus Wi-Fi beacon",
+      lastMessageTimestamp: Date.now(),
+      unreadCount: 0,
+      isPinned: false,
+      isArchived: false,
+    };
+    chatStore.conversations.unshift(conv);
+  }
+  chatStore.selectConversation(conv.id);
+  networkStore.setDirectLan(true);
+}
 </script>
 
 <template>
@@ -161,6 +184,34 @@ function handleNavigate(path: string) {
               placeholder="Search conversations..."
               class="pl-9 h-9 text-xs"
             />
+          </div>
+        </div>
+
+        <!-- Discovered Local LAN Peers Header -->
+        <div
+          v-if="Object.keys(networkStore.lanPeers).length > 0"
+          class="px-3 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-xs text-emerald-600 dark:text-emerald-400 select-none shrink-0"
+        >
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="font-bold flex items-center gap-1.5">
+              <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Nearby on Campus ({{ Object.keys(networkStore.lanPeers).length }})
+            </span>
+            <span class="text-[10px] opacity-75">Direct Wi-Fi</span>
+          </div>
+          <div class="space-y-1">
+            <div
+              v-for="peer in networkStore.lanPeers"
+              :key="peer.fingerprint"
+              class="flex items-center justify-between p-1.5 rounded-lg bg-surface/80 border border-emerald-500/30 hover:bg-surface cursor-pointer transition-colors"
+              @click="selectLanPeer(peer)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <Avatar :name="peer.displayName" size="sm" :is-online="true" />
+                <span class="font-medium truncate text-textPrimary text-xs">{{ peer.displayName }}</span>
+              </div>
+              <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">0ms LAN</span>
+            </div>
           </div>
         </div>
 

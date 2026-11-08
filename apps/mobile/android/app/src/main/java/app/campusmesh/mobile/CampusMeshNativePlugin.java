@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -16,11 +17,23 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import app.campusmesh.mobile.services.MeshForegroundService;
+import org.json.JSONObject;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
 
 @CapacitorPlugin(name = "CampusMeshNative")
 public class CampusMeshNativePlugin extends Plugin {
     public static final String MSG_CHANNEL_ID = "campusmesh_incoming_messages";
+    public static final String MULTICAST_IP = "239.255.255.250";
+    public static final int MULTICAST_PORT = 7777;
+
     private static int msgNotificationId = 8800;
+    private WifiManager.MulticastLock multicastLock;
+    private MulticastSocket multicastSocket;
+    private Thread lanListenerThread;
+    private volatile boolean isLanRunning = false;
 
     @PluginMethod
     public void startForegroundService(PluginCall call) {
@@ -140,6 +153,116 @@ public class CampusMeshNativePlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void startLanDiscovery(PluginCall call) {
+        final String localFingerprint = call.getString("localFingerprint", "");
+
+        if (isLanRunning) {
+            JSObject ret = new JSObject();
+            ret.put("status", "already_running");
+            call.resolve(ret);
+            return;
+        }
+
+        try {
+            Context context = getContext();
+            WifiManager wifi = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if (wifi != null) {
+                multicastLock = wifi.createMulticastLock("CampusMeshMulticastLock");
+                multicastLock.setReferenceCounted(true);
+                multicastLock.acquire();
+            }
+
+            multicastSocket = new MulticastSocket(MULTICAST_PORT);
+            InetAddress group = InetAddress.getByName(MULTICAST_IP);
+            multicastSocket.joinGroup(group);
+
+            isLanRunning = true;
+            lanListenerThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    byte[] buffer = new byte[2048];
+                    while (isLanRunning) {
+                        try {
+                            DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                            multicastSocket.receive(packet);
+                            String raw = new String(packet.getData(), 0, packet.getLength(), "UTF-8");
+                            JSONObject json = new JSONObject(raw);
+                            String fp = json.optString("fingerprint", "");
+
+                            if (!fp.isEmpty() && !fp.equals(localFingerprint)) {
+                                JSObject peerEvent = new JSObject();
+                                peerEvent.put("fingerprint", fp);
+                                peerEvent.put("displayName", json.optString("display_name", "Peer"));
+                                peerEvent.put("ip", packet.getAddress().getHostAddress());
+                                peerEvent.put("port", json.optInt("port", MULTICAST_PORT));
+                                peerEvent.put("timestamp", json.optLong("timestamp", System.currentTimeMillis()));
+
+                                notifyListeners("lanPeerDiscovered", peerEvent);
+                            }
+                        } catch (Exception e) {
+                            // Socket closed or timeout
+                        }
+                    }
+                }
+            });
+            lanListenerThread.start();
+
+            JSObject ret = new JSObject();
+            ret.put("status", "listening");
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to start LAN discovery: " + e.getMessage(), e);
+        }
+    }
+
+    @PluginMethod
+    public void broadcastLanBeacon(PluginCall call) {
+        final String fingerprint = call.getString("fingerprint", "");
+        final String displayName = call.getString("displayName", "Campus User");
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    JSONObject obj = new JSONObject();
+                    obj.put("fingerprint", fingerprint);
+                    obj.put("display_name", displayName);
+                    obj.put("port", MULTICAST_PORT);
+                    obj.put("timestamp", System.currentTimeMillis());
+
+                    byte[] data = obj.toString().getBytes("UTF-8");
+                    InetAddress group = InetAddress.getByName(MULTICAST_IP);
+                    DatagramPacket packet = new DatagramPacket(data, data.length, group, MULTICAST_PORT);
+
+                    DatagramSocket sendSocket = new DatagramSocket();
+                    sendSocket.setBroadcast(true);
+                    sendSocket.send(packet);
+                    sendSocket.close();
+                } catch (Exception ignored) {}
+            }
+        }).start();
+
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopLanDiscovery(PluginCall call) {
+        isLanRunning = false;
+        try {
+            if (multicastSocket != null && !multicastSocket.isClosed()) {
+                multicastSocket.close();
+            }
+            if (multicastLock != null && multicastLock.isHeld()) {
+                multicastLock.release();
+            }
+        } catch (Exception ignored) {}
+
+        JSObject ret = new JSObject();
+        ret.put("status", "stopped");
+        call.resolve(ret);
+    }
+
     private void createMessageNotificationChannel(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -154,5 +277,11 @@ public class CampusMeshNativePlugin extends Plugin {
                 manager.createNotificationChannel(channel);
             }
         }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        stopLanDiscovery(null);
+        super.handleOnDestroy();
     }
 }

@@ -7,6 +7,7 @@ import {
   MessageType,
 } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
+import { nativeService } from "../services/native";
 
 export const useChatStore = defineStore("chat", () => {
   const activeConversationId = ref<string | null>(null);
@@ -89,12 +90,23 @@ export const useChatStore = defineStore("chat", () => {
     return list || [];
   });
 
-  function selectConversation(id: string | null) {
+  async function selectConversation(id: string | null) {
     activeConversationId.value = id;
     if (id) {
       const conv = conversations.value.find((c) => c.id === id);
       if (conv) {
         conv.unreadCount = 0;
+      }
+      // Load messages from native desktop SQLite database if available
+      if (nativeService.isTauri) {
+        try {
+          const nativeMsgs = await nativeService.getMessagesFromNativeDb(id);
+          if (nativeMsgs && nativeMsgs.length > 0) {
+            messagesMap.value[id] = nativeMsgs;
+          }
+        } catch {
+          // Fall back to memory map
+        }
       }
     }
   }
@@ -152,6 +164,11 @@ export const useChatStore = defineStore("chat", () => {
       if (!msg.isOutgoing && activeConversationId.value !== conv.id) {
         conv.unreadCount = (conv.unreadCount || 0) + 1;
       }
+    }
+
+    // Persist to native SQLite vault if running on native desktop
+    if (nativeService.isTauri) {
+      nativeService.saveMessageToNativeDb(msg).catch(() => {});
     }
   }
 
