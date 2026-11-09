@@ -216,9 +216,11 @@ export const useChatStore = defineStore("chat", () => {
     }
 
     // 3. Fallback to mock conversations only if nothing else loaded
-    for (const def of defaultConversations) {
-      if (!loadedMap.has(def.id)) {
-        loadedMap.set(def.id, def);
+    if (loadedMap.size === 0) {
+      for (const def of defaultConversations) {
+        if (!loadedMap.has(def.id)) {
+          loadedMap.set(def.id, def);
+        }
       }
     }
 
