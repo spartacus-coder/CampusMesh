@@ -371,10 +371,7 @@ export const nativeService = {
     if (this.isTauri) {
       const raw = await tauriInvoke<Array<Record<string, unknown>>>(
         "db_get_messages",
-        {
-          conversationId,
-          conversation_id: conversationId,
-        },
+        { conversationId },
       );
 
       if (raw && Array.isArray(raw)) {

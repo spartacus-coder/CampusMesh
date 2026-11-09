@@ -155,9 +155,15 @@ export const useChatStore = defineStore("chat", () => {
         }
       }
       existing.sort((a, b) => a.timestamp - b.timestamp);
-      messagesMap.value[conversationId] = existing;
+      messagesMap.value = {
+        ...messagesMap.value,
+        [conversationId]: [...existing],
+      };
     } else if (!messagesMap.value[conversationId]) {
-      messagesMap.value[conversationId] = [];
+      messagesMap.value = {
+        ...messagesMap.value,
+        [conversationId]: [],
+      };
     }
 
     return messagesMap.value[conversationId] || [];
@@ -220,9 +226,17 @@ export const useChatStore = defineStore("chat", () => {
       (a, b) => (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0),
     );
 
-    // If an active conversation is already set, hydrate its messages immediately
-    if (activeConversationId.value) {
-      await loadMessagesForConversation(activeConversationId.value);
+    // Pre-hydrate messages for all loaded conversations
+    for (const conv of conversations.value) {
+      await loadMessagesForConversation(conv.id);
+    }
+
+    // Auto-select the most recent conversation if none is active
+    if (!activeConversationId.value) {
+      const first = conversations.value[0];
+      if (first) {
+        activeConversationId.value = first.id;
+      }
     }
   }
 

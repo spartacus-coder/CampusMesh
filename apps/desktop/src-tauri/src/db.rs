@@ -183,14 +183,19 @@ impl Database {
 
     pub fn get_messages(&self, conversation_id: &str) -> Result<Vec<DbMessage>> {
         let conn = self.conn.lock().unwrap();
+        let alt_id = if let Some(stripped) = conversation_id.strip_prefix("conv-") {
+            stripped.to_string()
+        } else {
+            format!("conv-{}", conversation_id)
+        };
         let mut stmt = conn.prepare(
             "SELECT id, conversation_id, sender_fingerprint, recipient_fingerprint,
                     content, content_type, timestamp, delivery_state, is_outgoing
              FROM messages
-             WHERE conversation_id = ?1
+             WHERE conversation_id = ?1 OR conversation_id = ?2
              ORDER BY timestamp ASC",
         )?;
-        let rows = stmt.query_map(params![conversation_id], |row| {
+        let rows = stmt.query_map(params![conversation_id, alt_id], |row| {
             Ok(DbMessage {
                 id: row.get(0)?,
                 conversation_id: row.get(1)?,
