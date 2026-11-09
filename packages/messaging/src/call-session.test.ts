@@ -119,4 +119,37 @@ describe("CallSessionManager WebRTC Calling Suite", () => {
     manager.toggleVideo();
     expect(manager.isVideoEnabled()).toBe(false);
   });
+
+  it("should exchange ICE candidates and transition to CONNECTED on answer", async () => {
+    const signals: CallSignal[] = [];
+    const alice = new CallSessionManager({
+      localFingerprint: "fp-alice",
+      sendSignal: (sig) => signals.push(sig),
+    });
+
+    const callId = await alice.initiateCall("fp-bob", "AUDIO");
+    expect(alice.getState()).toBe(CallState.OUTGOING_RINGING);
+
+    // Alice receives ICE candidate before or during ringing
+    alice.handleIncomingSignal({
+      type: "call_ice",
+      callId,
+      callType: "AUDIO",
+      callerFingerprint: "fp-bob",
+      recipientFingerprint: "fp-alice",
+      candidate: { candidate: "candidate:1 1 UDP 2122252543 192.168.1.100 50000 typ host", sdpMid: "0", sdpMLineIndex: 0 },
+    });
+
+    // Bob answers with SDP
+    alice.handleIncomingSignal({
+      type: "call_answer",
+      callId,
+      callType: "AUDIO",
+      callerFingerprint: "fp-bob",
+      recipientFingerprint: "fp-alice",
+      sdp: "v=0\r\no=- 12345 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=audio 50000 UDP/TLS/RTP/SAVPF 111\r\n",
+    });
+
+    expect(alice.getState()).toBe(CallState.CONNECTED);
+  });
 });

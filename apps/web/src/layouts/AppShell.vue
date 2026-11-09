@@ -26,6 +26,8 @@ import {
   Button,
   CommandPalette,
 } from "@campusmesh/ui";
+import ActiveCallModal from "../components/ActiveCallModal.vue";
+import IncomingCallModal from "../components/IncomingCallModal.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -360,5 +362,9 @@ function isPeerOnline(conv: Conversation): boolean {
       @update:is-open="isCommandPaletteOpen = $event"
       @navigate="handleNavigate"
     />
+
+    <!-- Global WebRTC Audio & Video Calling Modals -->
+    <ActiveCallModal />
+    <IncomingCallModal />
   </div>
 </template>

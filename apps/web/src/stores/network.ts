@@ -8,6 +8,8 @@ import {
 } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import { useChatStore } from "./chat";
+import { useCallStore } from "./call";
+import type { CallSignal } from "@campusmesh/messaging";
 import {
   nativeService,
   type LanPeer,
@@ -275,6 +277,36 @@ export const useNetworkStore = defineStore("network", () => {
           await peerTransport.addIceCandidate(senderFp, candidate);
         }
       };
+
+      // Wire WebRTC Voice & Video Call Signaling Engine
+      const callStore = useCallStore();
+      callStore.setSignalDispatcher((signal) => {
+        if (signalingClient && signalingState.value === SignalingState.CONNECTED) {
+          signalingClient.sendCallSignal(signal.recipientFingerprint, signal);
+        }
+      });
+
+      signalingClient.onCallSignal = (senderFp, data) => {
+        try {
+          const signal = data as CallSignal;
+          const chatStore = useChatStore();
+          const conv = chatStore.conversations.find(
+            (c) => c.peerFingerprint === senderFp,
+          );
+          const callerName = conv?.name || `Peer ${senderFp.slice(0, 8)}`;
+          callStore.receiveSignal(signal, callerName);
+          nativeService.hapticFeedback();
+          if (signal.type === "call_offer") {
+            nativeService.notifyMessage(
+              `Incoming ${signal.callType === "VIDEO" ? "Video" : "Voice"} Call`,
+              `Incoming call from ${callerName}`,
+              `conv-${senderFp}`,
+            );
+          }
+        } catch (err) {
+          console.warn("Failed processing call signal:", err);
+        }
+      };
     }
   }
 
@@ -291,6 +323,8 @@ export const useNetworkStore = defineStore("network", () => {
 
   async function connectSignaling(roomId: string, localFingerprint: string) {
     initTransport();
+    const callStore = useCallStore();
+    callStore.setLocalFingerprint(localFingerprint);
     activeRoomId.value = roomId;
     if (signalingClient) {
       await signalingClient.connect(roomId, localFingerprint);

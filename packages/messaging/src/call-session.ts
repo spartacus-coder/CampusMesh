@@ -34,14 +34,21 @@ export interface CallSignal {
 export interface CallSessionOptions {
   localFingerprint: string;
   sendSignal: (signal: CallSignal) => void;
+  iceServers?: RTCIceServer[] | undefined;
   onStateChanged?: ((state: CallState) => void) | undefined;
   onRemoteStream?: ((stream: MediaStream) => void) | undefined;
   onLocalStream?: ((stream: MediaStream) => void) | undefined;
 }
 
+export const DEFAULT_CALL_STUN_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.cloudflare.com:3478" },
+  { urls: "stun:stun.l.google.com:19302" },
+];
+
 export class CallSessionManager {
   private localFingerprint: string;
   private sendSignal: (signal: CallSignal) => void;
+  private iceServers: RTCIceServer[];
   private onStateChanged?: ((state: CallState) => void) | undefined;
   private onRemoteStream?: ((stream: MediaStream) => void) | undefined;
   private onLocalStream?: ((stream: MediaStream) => void) | undefined;
@@ -55,6 +62,9 @@ export class CallSessionManager {
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
 
+  private pendingOfferSdp: string | null = null;
+  private pendingIceCandidates: RTCIceCandidateInit[] = [];
+
   private callStartTime: number | null = null;
   private isAudioMuted = false;
   private isVideoMuted = false;
@@ -62,6 +72,7 @@ export class CallSessionManager {
   constructor(options: CallSessionOptions) {
     this.localFingerprint = options.localFingerprint;
     this.sendSignal = options.sendSignal;
+    this.iceServers = options.iceServers ?? DEFAULT_CALL_STUN_SERVERS;
     this.onStateChanged = options.onStateChanged;
     this.onRemoteStream = options.onRemoteStream;
     this.onLocalStream = options.onLocalStream;
@@ -123,6 +134,67 @@ export class CallSessionManager {
     this.cleanup(CallState.IDLE);
   }
 
+  private createPeerConnection(): RTCPeerConnection | null {
+    if (typeof RTCPeerConnection === "undefined") return null;
+
+    try {
+      const pc = new RTCPeerConnection({
+        iceServers: this.iceServers,
+      });
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && this.activeCallId && this.activePeerFingerprint) {
+          this.sendSignal({
+            type: "call_ice",
+            callId: this.activeCallId,
+            callType: this.activeCallType,
+            callerFingerprint: this.localFingerprint,
+            recipientFingerprint: this.activePeerFingerprint,
+            candidate: event.candidate.toJSON(),
+          });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        const stream = event.streams[0] || new MediaStream([event.track]);
+        this.setRemoteStream(stream);
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          if (this.state !== CallState.CONNECTED) {
+            this.setState(CallState.CONNECTED);
+            this.callStartTime = Date.now();
+          }
+        } else if (
+          pc.connectionState === "failed" ||
+          pc.connectionState === "closed"
+        ) {
+          if (this.state === CallState.CONNECTED) {
+            this.endCall();
+          }
+        }
+      };
+
+      // Bind all acquired local audio/video tracks to peer connection
+      if (this.localStream) {
+        this.localStream.getTracks().forEach((track) => {
+          try {
+            pc.addTrack(track, this.localStream!);
+          } catch {
+            // Ignore duplicate track addition
+          }
+        });
+      }
+
+      this.peerConnection = pc;
+      return pc;
+    } catch (err) {
+      console.warn("Failed creating RTCPeerConnection:", err);
+      return null;
+    }
+  }
+
   public async initiateCall(
     recipientFingerprint: string,
     type: CallType = "AUDIO",
@@ -135,10 +207,28 @@ export class CallSessionManager {
     this.activeCallId = callId;
     this.activePeerFingerprint = recipientFingerprint;
     this.activeCallType = type;
+    this.pendingOfferSdp = null;
+    this.pendingIceCandidates = [];
     this.setState(CallState.OUTGOING_RINGING);
 
     // Acquire local media stream if navigator.mediaDevices exists
     await this.acquireLocalMedia(type);
+
+    const pc = this.createPeerConnection();
+    let sdpOffer: string | undefined;
+
+    if (pc) {
+      try {
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: type === "VIDEO",
+        });
+        await pc.setLocalDescription(offer);
+        sdpOffer = offer.sdp;
+      } catch (err) {
+        console.warn("Failed creating SDP offer for call:", err);
+      }
+    }
 
     this.sendSignal({
       type: "call_offer",
@@ -146,6 +236,7 @@ export class CallSessionManager {
       callType: type,
       callerFingerprint: this.localFingerprint,
       recipientFingerprint,
+      sdp: sdpOffer,
     });
 
     return callId;
@@ -160,6 +251,33 @@ export class CallSessionManager {
     }
 
     await this.acquireLocalMedia(this.activeCallType);
+    const pc = this.createPeerConnection();
+    let sdpAnswer: string | undefined;
+
+    if (pc && this.pendingOfferSdp) {
+      try {
+        await pc.setRemoteDescription(
+          new RTCSessionDescription({
+            type: "offer",
+            sdp: this.pendingOfferSdp,
+          }),
+        );
+
+        // Flush any queued ICE candidates that arrived before remote description
+        while (this.pendingIceCandidates.length > 0) {
+          const cand = this.pendingIceCandidates.shift();
+          if (cand) {
+            await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
+        }
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        sdpAnswer = answer.sdp;
+      } catch (err) {
+        console.warn("Failed creating SDP answer for call:", err);
+      }
+    }
 
     this.setState(CallState.CONNECTED);
     this.callStartTime = Date.now();
@@ -171,6 +289,7 @@ export class CallSessionManager {
         callType: this.activeCallType,
         callerFingerprint: this.activePeerFingerprint,
         recipientFingerprint: this.localFingerprint,
+        sdp: sdpAnswer,
       });
     }
   }
@@ -201,7 +320,7 @@ export class CallSessionManager {
     this.cleanup(CallState.ENDED);
   }
 
-  public handleIncomingSignal(signal: CallSignal): void {
+  public async handleIncomingSignal(signal: CallSignal): Promise<void> {
     switch (signal.type) {
       case "call_offer":
         if (this.isBusy()) {
@@ -218,6 +337,8 @@ export class CallSessionManager {
         this.activeCallId = signal.callId;
         this.activePeerFingerprint = signal.callerFingerprint;
         this.activeCallType = signal.callType;
+        this.pendingOfferSdp = signal.sdp || null;
+        this.pendingIceCandidates = [];
         this.setState(CallState.INCOMING_RINGING);
         break;
 
@@ -226,8 +347,44 @@ export class CallSessionManager {
           this.state === CallState.OUTGOING_RINGING &&
           this.activeCallId === signal.callId
         ) {
+          if (this.peerConnection && signal.sdp) {
+            try {
+              await this.peerConnection.setRemoteDescription(
+                new RTCSessionDescription({
+                  type: "answer",
+                  sdp: signal.sdp,
+                }),
+              );
+              while (this.pendingIceCandidates.length > 0) {
+                const cand = this.pendingIceCandidates.shift();
+                if (cand) {
+                  await this.peerConnection
+                    .addIceCandidate(new RTCIceCandidate(cand))
+                    .catch(() => {});
+                }
+              }
+            } catch (err) {
+              console.warn("Failed setting remote answer SDP:", err);
+            }
+          }
           this.setState(CallState.CONNECTED);
           this.callStartTime = Date.now();
+        }
+        break;
+
+      case "call_ice":
+        if (this.activeCallId === signal.callId && signal.candidate) {
+          if (this.peerConnection && this.peerConnection.remoteDescription) {
+            try {
+              await this.peerConnection.addIceCandidate(
+                new RTCIceCandidate(signal.candidate),
+              );
+            } catch (err) {
+              console.warn("Failed adding ICE candidate:", err);
+            }
+          } else {
+            this.pendingIceCandidates.push(signal.candidate);
+          }
         }
         break;
 
@@ -290,8 +447,8 @@ export class CallSessionManager {
         });
         this.localStream = stream;
         this.onLocalStream?.(stream);
-      } catch {
-        // Fallback for mocked/headless environments
+      } catch (err) {
+        console.warn("getUserMedia failed or denied:", err);
       }
     }
   }
@@ -311,6 +468,8 @@ export class CallSessionManager {
       this.peerConnection = null;
     }
     this.remoteStream = null;
+    this.pendingOfferSdp = null;
+    this.pendingIceCandidates = [];
     this.callStartTime = null;
     this.activeCallId = null;
     this.activePeerFingerprint = null;

@@ -31,6 +31,7 @@ export interface SignalingRoomMessage {
     | "room_peers"
     | "chat_message"
     | "chat_ack"
+    | "call_signal"
     | "mailbox_deposit"
     | "mailbox_fetch"
     | "mailbox_deliver";

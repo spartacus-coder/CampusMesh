@@ -16,15 +16,24 @@ export const useCallStore = defineStore("call", () => {
   const isAudioMuted = ref(false);
   const isVideoMuted = ref(false);
 
+  const localStream = ref<MediaStream | null>(null);
+  const remoteStream = ref<MediaStream | null>(null);
+
   let timerInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Mock or real WebRTC signal dispatcher
+  // Real WebRTC signal dispatcher via signalingClient
   let signalDispatcher: ((signal: CallSignal) => void) | null = null;
 
   const sessionManager = new CallSessionManager({
     localFingerprint: "me",
     sendSignal: (signal) => {
       signalDispatcher?.(signal);
+    },
+    onLocalStream: (stream) => {
+      localStream.value = stream;
+    },
+    onRemoteStream: (stream) => {
+      remoteStream.value = stream;
     },
     onStateChanged: (st) => {
       callState.value = st;
@@ -37,9 +46,15 @@ export const useCallStore = defineStore("call", () => {
         st === CallState.IDLE
       ) {
         stopTimer();
+        localStream.value = null;
+        remoteStream.value = null;
       }
     },
   });
+
+  function setLocalFingerprint(fp: string) {
+    (sessionManager as unknown as { localFingerprint: string }).localFingerprint = fp;
+  }
 
   function setSignalDispatcher(fn: (signal: CallSignal) => void) {
     signalDispatcher = fn;
@@ -88,12 +103,17 @@ export const useCallStore = defineStore("call", () => {
     }
     callState.value = CallState.IDLE;
     peerFingerprint.value = null;
+    localStream.value = null;
+    remoteStream.value = null;
+    stopTimer();
   }
 
   function endCall(): void {
     sessionManager.endCall();
     callState.value = CallState.IDLE;
     peerFingerprint.value = null;
+    localStream.value = null;
+    remoteStream.value = null;
     stopTimer();
   }
 
@@ -109,13 +129,13 @@ export const useCallStore = defineStore("call", () => {
     return active;
   }
 
-  function receiveSignal(signal: CallSignal, callerName = "Peer"): void {
+  async function receiveSignal(signal: CallSignal, callerName = "Peer"): Promise<void> {
     if (signal.type === "call_offer") {
       peerName.value = callerName;
       peerFingerprint.value = signal.callerFingerprint;
       callType.value = signal.callType;
     }
-    sessionManager.handleIncomingSignal(signal);
+    await sessionManager.handleIncomingSignal(signal);
   }
 
   const formattedDuration = computed(() => {
@@ -142,7 +162,10 @@ export const useCallStore = defineStore("call", () => {
     formattedDuration,
     isAudioMuted,
     isVideoMuted,
+    localStream,
+    remoteStream,
     isCallActive,
+    setLocalFingerprint,
     setSignalDispatcher,
     startCall,
     acceptCall,

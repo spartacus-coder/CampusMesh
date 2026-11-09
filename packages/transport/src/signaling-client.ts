@@ -12,6 +12,7 @@ export interface SignalingFrame {
     | "room_peers"
     | "chat_message"
     | "chat_ack"
+    | "call_signal"
     | "mailbox_deposit"
     | "mailbox_fetch"
     | "mailbox_deliver"
@@ -56,6 +57,7 @@ export class SignalingClient {
   public onRoomPeers?: (peers: string[]) => void;
   public onChatMessage?: (senderFingerprint: string, data: unknown) => void;
   public onChatAck?: (senderFingerprint: string, data: unknown) => void;
+  public onCallSignal?: (senderFingerprint: string, data: unknown) => void;
   public onMailboxMessages?: (messages: unknown[]) => void;
   public onStateChange?: (state: SignalingState) => void;
 
@@ -216,6 +218,11 @@ export class SignalingClient {
           this.onChatAck?.(frame.senderFingerprint, frame.data);
         }
         break;
+      case "call_signal":
+        if (frame.data) {
+          this.onCallSignal?.(frame.senderFingerprint, frame.data);
+        }
+        break;
       case "mailbox_deliver":
         if (frame.mailboxMessages) {
           this.onMailboxMessages?.(frame.mailboxMessages);
@@ -339,6 +346,17 @@ export class SignalingClient {
     if (!this.localFingerprint || !this.roomId) return;
     this.sendFrame({
       type: "chat_ack",
+      senderFingerprint: this.localFingerprint,
+      targetFingerprint,
+      roomId: this.roomId,
+      data,
+    });
+  }
+
+  public sendCallSignal(targetFingerprint: string, data: unknown) {
+    if (!this.localFingerprint || !this.roomId) return;
+    this.sendFrame({
+      type: "call_signal",
       senderFingerprint: this.localFingerprint,
       targetFingerprint,
       roomId: this.roomId,

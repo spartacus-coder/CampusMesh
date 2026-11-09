@@ -282,7 +282,7 @@ export class RoomCoordinator {
       return;
     }
 
-    if (msg.type === "chat_message" || msg.type === "chat_ack") {
+    if (msg.type === "chat_message" || msg.type === "chat_ack" || msg.type === "call_signal") {
       if (!msg.targetFingerprint) return;
       const targetSocket = this.getSocket(msg.targetFingerprint);
       if (targetSocket) {

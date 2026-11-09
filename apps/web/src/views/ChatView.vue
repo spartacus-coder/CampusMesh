@@ -35,8 +35,6 @@ import {
 import { DeliveryState, MessageType, PeerConnectionState } from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
-import ActiveCallModal from "../components/ActiveCallModal.vue";
-import IncomingCallModal from "../components/IncomingCallModal.vue";
 import AddContactModal from "../components/AddContactModal.vue";
 import {
   useFileTransferStore,
@@ -742,7 +740,5 @@ function handleStartVideoCall() {
       @close="showManualSignalModal = false"
     />
     <AddContactModal />
-    <ActiveCallModal />
-    <IncomingCallModal />
   </div>
 </template>

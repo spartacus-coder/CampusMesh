@@ -24,5 +24,30 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) {
             // Log or ignore if background restrictions apply before user interaction
         }
+
+        // Request runtime media permissions for WebRTC Voice & Video calls
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            String[] permissions = {
+                android.Manifest.permission.RECORD_AUDIO,
+                android.Manifest.permission.CAMERA
+            };
+            boolean needsRequest = false;
+            for (String p : permissions) {
+                if (checkSelfPermission(p) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    needsRequest = true;
+                    break;
+                }
+            }
+            if (needsRequest) {
+                requestPermissions(permissions, 101);
+            }
+        }
+
+        // Enable media playback without requiring initial user gestures for incoming call ringers & audio streams
+        try {
+            if (getBridge() != null && getBridge().getWebView() != null) {
+                getBridge().getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+            }
+        } catch (Exception ignored) {}
     }
 }
