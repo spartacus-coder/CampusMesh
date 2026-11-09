@@ -4,7 +4,12 @@
  */
 
 import type { StoredMessage } from "@campusmesh/storage";
-import { MessageType, DeliveryState } from "@campusmesh/shared-types";
+import {
+  MessageType,
+  DeliveryState,
+  type Conversation,
+  type Contact,
+} from "@campusmesh/shared-types";
 
 export interface LanPeer {
   fingerprint: string;
@@ -342,13 +347,19 @@ export const nativeService = {
         msg: {
           id: msg.id,
           conversation_id: msg.conversationId,
+          conversationId: msg.conversationId,
           sender_fingerprint: msg.senderFingerprint,
+          senderFingerprint: msg.senderFingerprint,
           recipient_fingerprint: msg.recipientFingerprint || null,
+          recipientFingerprint: msg.recipientFingerprint || null,
           content: msg.content,
           content_type: msg.contentType,
+          contentType: msg.contentType,
           timestamp: msg.timestamp,
           delivery_state: msg.deliveryState,
+          deliveryState: msg.deliveryState,
           is_outgoing: msg.isOutgoing,
+          isOutgoing: msg.isOutgoing,
         },
       });
     }
@@ -358,31 +369,134 @@ export const nativeService = {
     conversationId: string,
   ): Promise<StoredMessage[] | null> {
     if (this.isTauri) {
-      const raw = await tauriInvoke<
-        Array<{
-          id: string;
-          conversation_id: string;
-          sender_fingerprint: string;
-          recipient_fingerprint: string | null;
-          content: string;
-          content_type: string;
-          timestamp: number;
-          delivery_state: string;
-          is_outgoing: boolean;
-        }>
-      >("db_get_messages", { conversationId });
+      const raw = await tauriInvoke<Array<Record<string, unknown>>>(
+        "db_get_messages",
+        {
+          conversationId,
+          conversation_id: conversationId,
+        },
+      );
 
-      if (raw) {
-        return raw.map((r) => ({
-          id: r.id,
-          conversationId: r.conversation_id,
-          senderFingerprint: r.sender_fingerprint,
-          recipientFingerprint: r.recipient_fingerprint || undefined,
-          content: r.content,
-          contentType: r.content_type as MessageType,
-          timestamp: r.timestamp,
-          deliveryState: r.delivery_state as DeliveryState,
-          isOutgoing: r.is_outgoing,
+      if (raw && Array.isArray(raw)) {
+        return raw.map((r) => {
+          const msg: StoredMessage = {
+            id: String(r.id),
+            conversationId: String(
+              r.conversationId || r.conversation_id || conversationId,
+            ),
+            senderFingerprint: String(
+              r.senderFingerprint || r.sender_fingerprint || "",
+            ),
+            content: String(r.content || ""),
+            contentType: (r.contentType ||
+              r.content_type ||
+              MessageType.TEXT) as MessageType,
+            timestamp: Number(r.timestamp || Date.now()),
+            deliveryState: (r.deliveryState ||
+              r.delivery_state ||
+              DeliveryState.DELIVERED) as DeliveryState,
+            isOutgoing: Boolean(r.isOutgoing ?? r.is_outgoing),
+          };
+          const recipFp = r.recipientFingerprint || r.recipient_fingerprint;
+          if (recipFp) {
+            msg.recipientFingerprint = String(recipFp);
+          }
+          return msg;
+        });
+      }
+    }
+    return null;
+  },
+
+  async saveConversationToNativeDb(conv: Conversation): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("db_save_conversation", {
+        conv: {
+          id: conv.id,
+          name: conv.name,
+          peer_fingerprint: conv.peerFingerprint || null,
+          peerFingerprint: conv.peerFingerprint || null,
+          is_group: !!conv.isGroup,
+          isGroup: !!conv.isGroup,
+          last_message_preview: conv.lastMessagePreview || null,
+          lastMessagePreview: conv.lastMessagePreview || null,
+          last_message_timestamp: conv.lastMessageTimestamp || Date.now(),
+          lastMessageTimestamp: conv.lastMessageTimestamp || Date.now(),
+          unread_count: conv.unreadCount || 0,
+          unreadCount: conv.unreadCount || 0,
+          is_pinned: !!conv.isPinned,
+          isPinned: !!conv.isPinned,
+          is_archived: !!conv.isArchived,
+          isArchived: !!conv.isArchived,
+        },
+      });
+    }
+  },
+
+  async getConversationsFromNativeDb(): Promise<Conversation[] | null> {
+    if (this.isTauri) {
+      const raw = await tauriInvoke<Array<Record<string, unknown>>>(
+        "db_get_conversations",
+      );
+      if (raw && Array.isArray(raw)) {
+        return raw.map((c) => {
+          const conv: Conversation = {
+            id: String(c.id || ""),
+            name: String(c.name || "Chat"),
+            isGroup: Boolean(c.isGroup ?? c.is_group),
+            lastMessageTimestamp: Number(
+              c.lastMessageTimestamp ?? c.last_message_timestamp ?? Date.now(),
+            ),
+            unreadCount: Number(c.unreadCount ?? c.unread_count ?? 0),
+            isPinned: Boolean(c.isPinned ?? c.is_pinned),
+            isArchived: Boolean(c.isArchived ?? c.is_archived),
+          };
+          const peerFp = c.peerFingerprint || c.peer_fingerprint;
+          if (peerFp) {
+            conv.peerFingerprint = String(peerFp);
+          }
+          const preview = c.lastMessagePreview || c.last_message_preview;
+          if (preview) {
+            conv.lastMessagePreview = String(preview);
+          }
+          return conv;
+        });
+      }
+    }
+    return null;
+  },
+
+  async saveContactToNativeDb(contact: Contact): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("db_save_contact", {
+        contact: {
+          fingerprint: contact.fingerprint,
+          display_name: contact.displayName,
+          displayName: contact.displayName,
+          safety_number: contact.safetyNumber || null,
+          safetyNumber: contact.safetyNumber || null,
+          is_verified: !!contact.isVerified,
+          isVerified: !!contact.isVerified,
+          added_at: contact.addedAt || Date.now(),
+          addedAt: contact.addedAt || Date.now(),
+        },
+      });
+    }
+  },
+
+  async getContactsFromNativeDb(): Promise<Contact[] | null> {
+    if (this.isTauri) {
+      const raw =
+        await tauriInvoke<Array<Record<string, unknown>>>("db_get_contacts");
+      if (raw && Array.isArray(raw)) {
+        return raw.map((c) => ({
+          id: String(c.fingerprint || ""),
+          fingerprint: String(c.fingerprint || ""),
+          displayName: String(c.displayName || c.display_name || "Contact"),
+          safetyNumber: String(c.safetyNumber || c.safety_number || ""),
+          isVerified: Boolean(c.isVerified ?? c.is_verified),
+          isBlocked: false,
+          addedAt: Number(c.addedAt ?? c.added_at ?? Date.now()),
         }));
       }
     }

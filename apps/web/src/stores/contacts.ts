@@ -12,6 +12,7 @@ import {
   InMemoryStorageAdapter,
   type IStoragePort,
 } from "@campusmesh/storage";
+import { nativeService } from "../services/native";
 
 let storageInstance: IStoragePort | null = null;
 function getStorage(): IStoragePort {
@@ -56,6 +57,30 @@ export const useContactsStore = defineStore("contacts", () => {
     try {
       isLoading.value = true;
       contacts.value = await contactManager.listContacts();
+
+      if (nativeService.isTauri) {
+        try {
+          const nativeContacts = await nativeService.getContactsFromNativeDb();
+          if (nativeContacts && nativeContacts.length > 0) {
+            for (const nc of nativeContacts) {
+              if (
+                !contacts.value.some((c) => c.fingerprint === nc.fingerprint)
+              ) {
+                contacts.value.push(nc);
+                contactManager
+                  .addContact({
+                    fingerprint: nc.fingerprint,
+                    displayName: nc.displayName,
+                    safetyNumber: nc.safetyNumber,
+                  })
+                  .catch(() => {});
+              }
+            }
+          }
+        } catch {
+          // Native contacts fallback gracefully
+        }
+      }
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : String(err);
     } finally {
@@ -75,6 +100,9 @@ export const useContactsStore = defineStore("contacts", () => {
     try {
       error.value = null;
       const contact = await contactManager.addContact(input);
+      if (nativeService.isTauri) {
+        nativeService.saveContactToNativeDb(contact).catch(() => {});
+      }
       await loadContacts();
       return contact;
     } catch (err: unknown) {

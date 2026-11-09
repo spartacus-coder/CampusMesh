@@ -123,6 +123,19 @@ watch(
 );
 
 watch(
+  () => activeConversation.value?.id,
+  async (convId) => {
+    if (convId) {
+      const msgs = chatStore.messagesMap[convId];
+      if (!msgs || msgs.length === 0) {
+        await chatStore.loadMessagesForConversation(convId);
+      }
+    }
+  },
+  { immediate: true },
+);
+
+watch(
   () =>
     [
       activeConversation.value?.id,

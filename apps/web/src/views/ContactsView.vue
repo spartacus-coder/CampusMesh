@@ -52,7 +52,7 @@ async function removeContact(contact: Contact) {
   }
 }
 
-function startChatWithContact(contact: Contact) {
+async function startChatWithContact(contact: Contact) {
   let conv = chatStore.conversations.find(
     (c) => c.peerFingerprint === contact.fingerprint,
   );
@@ -67,9 +67,9 @@ function startChatWithContact(contact: Contact) {
       isArchived: false,
       lastMessageTimestamp: Date.now(),
     };
-    chatStore.conversations.unshift(conv);
+    await chatStore.saveConversation(conv);
   }
-  chatStore.activeConversationId = conv.id;
+  await chatStore.selectConversation(conv.id);
   router.push("/");
 }
 </script>

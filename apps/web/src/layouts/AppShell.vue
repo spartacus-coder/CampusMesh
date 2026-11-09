@@ -92,6 +92,13 @@ function selectLanPeer(peer: { fingerprint: string; displayName: string }) {
   });
 }
 
+function onSelectConversation(id: string) {
+  chatStore.selectConversation(id);
+  if (route.path !== "/") {
+    router.push("/");
+  }
+}
+
 function isPeerOnline(conv: Conversation): boolean {
   if (conv.isGroup) return false;
   if (!conv.peerFingerprint) return false;
@@ -288,7 +295,7 @@ function isPeerOnline(conv: Conversation): boolean {
                 ? 'bg-primary/10 border border-primary/20 text-textPrimary'
                 : 'hover:bg-surface-hover text-textSecondary'
             "
-            @click="chatStore.selectConversation(conv.id)"
+            @click="onSelectConversation(conv.id)"
           >
             <Avatar :name="conv.name" size="md" :is-online="isPeerOnline(conv)" />
             <div class="flex-1 min-w-0">

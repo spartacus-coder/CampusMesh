@@ -3,6 +3,7 @@ import { onMounted, watch } from "vue";
 import { useThemeStore } from "./stores/theme";
 import { useNetworkStore } from "./stores/network";
 import { useIdentityStore } from "./stores/identity";
+import { useChatStore } from "./stores/chat";
 import AppShell from "./layouts/AppShell.vue";
 import IdentityModal from "./components/IdentityModal.vue";
 import { nativeService } from "./services/native";
@@ -10,6 +11,7 @@ import { nativeService } from "./services/native";
 const themeStore = useThemeStore();
 const networkStore = useNetworkStore();
 const identityStore = useIdentityStore();
+const chatStore = useChatStore();
 
 watch(
   () =>
@@ -31,6 +33,7 @@ onMounted(async () => {
   networkStore.initNetworkListeners();
   await identityStore.checkInitialization();
   await nativeService.initNativeServices();
+  await chatStore.initConversations();
 });
 </script>
 
