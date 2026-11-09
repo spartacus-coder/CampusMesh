@@ -120,7 +120,10 @@ export class DexieStorageAdapter implements IStoragePort {
 
   async getConversation(id: string): Promise<Conversation | null> {
     const conversation = await this.db.conversations.get(id);
-    return conversation ?? null;
+    if (conversation) return conversation;
+    const altId = id.startsWith("conv-") ? id.slice(5) : `conv-${id}`;
+    const alt = await this.db.conversations.get(altId);
+    return alt ?? null;
   }
 
   async saveMessage(message: StoredMessage): Promise<void> {
@@ -132,9 +135,12 @@ export class DexieStorageAdapter implements IStoragePort {
     limit = 50,
     beforeTimestamp?: number,
   ): Promise<StoredMessage[]> {
+    const altId = conversationId.startsWith("conv-")
+      ? conversationId.slice(5)
+      : `conv-${conversationId}`;
     let collection = this.db.messages
       .where("conversationId")
-      .equals(conversationId);
+      .anyOf([conversationId, altId]);
     if (beforeTimestamp !== undefined) {
       collection = collection.filter((m) => m.timestamp < beforeTimestamp);
     }
