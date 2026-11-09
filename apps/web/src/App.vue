@@ -31,9 +31,21 @@ watch(
 onMounted(async () => {
   themeStore.initTheme();
   networkStore.initNetworkListeners();
-  await identityStore.checkInitialization();
-  await nativeService.initNativeServices();
-  await chatStore.initConversations();
+  try {
+    await identityStore.checkInitialization();
+  } catch (err) {
+    console.warn("[App] Identity checkInitialization failed:", err);
+  }
+  try {
+    await nativeService.initNativeServices();
+  } catch (err) {
+    console.warn("[App] Native services init failed:", err);
+  }
+  try {
+    await chatStore.initConversations();
+  } catch (err) {
+    console.warn("[App] Chat conversations init failed:", err);
+  }
 });
 </script>
 

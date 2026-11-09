@@ -1,6 +1,6 @@
 {
   "name": "@campusmesh/mobile",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "CampusMesh Capacitor 8 Android Mobile Container",
   "type": "module",

@@ -87,7 +87,7 @@ const webAppUrl = "https://campusmesh.pages.dev";
           <span
             class="text-xs uppercase tracking-wider font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full"
           >
-            v1.0.2 Production Release
+            v1.0.3 Production Release
           </span>
         </div>
         <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight">
@@ -366,7 +366,7 @@ const webAppUrl = "https://campusmesh.pages.dev";
       <footer
         class="flex flex-col md:flex-row items-center justify-between text-xs text-textMuted border-t border-border pt-6 gap-3"
       >
-        <span>CampusMesh v1.0.2 — Licensed under MIT</span>
+        <span>CampusMesh v1.0.3 — Licensed under MIT</span>
         <div class="flex items-center gap-4">
           <a
             :href="githubReleaseUrl"
