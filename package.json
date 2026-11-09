@@ -1,6 +1,6 @@
 {
   "name": "campusmesh-monorepo",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Decentralized, zero-cost, cross-platform P2P communication platform",
   "type": "module",
