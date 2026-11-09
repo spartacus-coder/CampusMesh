@@ -137,7 +137,11 @@ describe("CallSessionManager WebRTC Calling Suite", () => {
       callType: "AUDIO",
       callerFingerprint: "fp-bob",
       recipientFingerprint: "fp-alice",
-      candidate: { candidate: "candidate:1 1 UDP 2122252543 192.168.1.100 50000 typ host", sdpMid: "0", sdpMLineIndex: 0 },
+      candidate: {
+        candidate: "candidate:1 1 UDP 2122252543 192.168.1.100 50000 typ host",
+        sdpMid: "0",
+        sdpMLineIndex: 0,
+      },
     });
 
     // Bob answers with SDP

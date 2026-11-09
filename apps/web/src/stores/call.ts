@@ -53,7 +53,9 @@ export const useCallStore = defineStore("call", () => {
   });
 
   function setLocalFingerprint(fp: string) {
-    (sessionManager as unknown as { localFingerprint: string }).localFingerprint = fp;
+    (
+      sessionManager as unknown as { localFingerprint: string }
+    ).localFingerprint = fp;
   }
 
   function setSignalDispatcher(fn: (signal: CallSignal) => void) {
@@ -129,7 +131,10 @@ export const useCallStore = defineStore("call", () => {
     return active;
   }
 
-  async function receiveSignal(signal: CallSignal, callerName = "Peer"): Promise<void> {
+  async function receiveSignal(
+    signal: CallSignal,
+    callerName = "Peer",
+  ): Promise<void> {
     if (signal.type === "call_offer") {
       peerName.value = callerName;
       peerFingerprint.value = signal.callerFingerprint;

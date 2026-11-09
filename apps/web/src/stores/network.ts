@@ -199,7 +199,12 @@ export const useNetworkStore = defineStore("network", () => {
             (msg.content as string) || "Encrypted message",
             `conv-${senderFp}`,
           );
-          sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, `conv-${senderFp}`);
+          sendDeliveryAck(
+            senderFp,
+            msgId,
+            DeliveryState.DELIVERED,
+            `conv-${senderFp}`,
+          );
         } catch (err) {
           console.warn(
             "Failed to process incoming signaling chat message:",
@@ -216,7 +221,8 @@ export const useNetworkStore = defineStore("network", () => {
               : (data as Record<string, unknown>);
           if (ack.messageId && ack.deliveryState) {
             const chatStore = useChatStore();
-            const convId = (ack.conversationId as string) || `conv-${_senderFp}`;
+            const convId =
+              (ack.conversationId as string) || `conv-${_senderFp}`;
             chatStore.updateMessageDelivery(
               convId,
               ack.messageId as string,
@@ -252,7 +258,12 @@ export const useNetworkStore = defineStore("network", () => {
               deliveryState: DeliveryState.DELIVERED,
               isOutgoing: false,
             });
-            sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, `conv-${senderFp}`);
+            sendDeliveryAck(
+              senderFp,
+              msgId,
+              DeliveryState.DELIVERED,
+              `conv-${senderFp}`,
+            );
           } catch {
             // Ignore malformed mailbox record
           }
@@ -281,7 +292,10 @@ export const useNetworkStore = defineStore("network", () => {
       // Wire WebRTC Voice & Video Call Signaling Engine
       const callStore = useCallStore();
       callStore.setSignalDispatcher((signal) => {
-        if (signalingClient && signalingState.value === SignalingState.CONNECTED) {
+        if (
+          signalingClient &&
+          signalingState.value === SignalingState.CONNECTED
+        ) {
           signalingClient.sendCallSignal(signal.recipientFingerprint, signal);
         }
       });
@@ -449,7 +463,9 @@ export const useNetworkStore = defineStore("network", () => {
 
     // Also transmit via Air-Gapped Wi-Fi Direct if active
     if (nativeService.isAndroid && isAirGappedMeshActive.value) {
-      nativeService.sendWifiDirectMessage(JSON.stringify(payload)).catch(() => {});
+      nativeService
+        .sendWifiDirectMessage(JSON.stringify(payload))
+        .catch(() => {});
     }
 
     const storedMsg: StoredMessage = {
@@ -469,7 +485,10 @@ export const useNetworkStore = defineStore("network", () => {
     return storedMsg;
   }
 
-  async function startLanDiscovery(localFingerprint: string, displayName: string) {
+  async function startLanDiscovery(
+    localFingerprint: string,
+    displayName: string,
+  ) {
     if (!nativeService.isNative) return;
 
     await nativeService.startLanDiscovery(localFingerprint, (peer) => {
@@ -566,7 +585,10 @@ export const useNetworkStore = defineStore("network", () => {
     }
   }
 
-  async function startAirGappedMesh(localFingerprint: string, displayName: string) {
+  async function startAirGappedMesh(
+    localFingerprint: string,
+    displayName: string,
+  ) {
     isAirGappedMeshActive.value = true;
     await startLanDiscovery(localFingerprint, displayName);
 

@@ -126,10 +126,7 @@ export const useChatStore = defineStore("chat", () => {
           loadedMsgs = nativeMsgs;
         }
       } catch (err) {
-        console.warn(
-          "[ChatStore] Native getMessagesFromNativeDb failed:",
-          err,
-        );
+        console.warn("[ChatStore] Native getMessagesFromNativeDb failed:", err);
       }
     }
 
@@ -178,7 +175,9 @@ export const useChatStore = defineStore("chat", () => {
         if (nativeService.isTauri) {
           nativeService.saveConversationToNativeDb(conv).catch(() => {});
         }
-        getStorage().saveConversation(conv).catch(() => {});
+        getStorage()
+          .saveConversation(conv)
+          .catch(() => {});
       }
       await loadMessagesForConversation(id);
     }
@@ -305,14 +304,18 @@ export const useChatStore = defineStore("chat", () => {
       if (nativeService.isTauri) {
         nativeService.saveConversationToNativeDb(conv).catch(() => {});
       }
-      getStorage().saveConversation(conv).catch(() => {});
+      getStorage()
+        .saveConversation(conv)
+        .catch(() => {});
     }
 
     // Persist message to both native SQLite vault and IndexedDB
     if (nativeService.isTauri) {
       nativeService.saveMessageToNativeDb(msg).catch(() => {});
     }
-    getStorage().saveMessage(msg).catch(() => {});
+    getStorage()
+      .saveMessage(msg)
+      .catch(() => {});
   }
 
   function updateMessageDelivery(
@@ -325,7 +328,9 @@ export const useChatStore = defineStore("chat", () => {
       const target = list.find((m) => m.id === messageId);
       if (target) {
         target.deliveryState = state;
-        getStorage().updateMessageDeliveryState(messageId, state).catch(() => {});
+        getStorage()
+          .updateMessageDeliveryState(messageId, state)
+          .catch(() => {});
       }
     }
   }
@@ -340,7 +345,9 @@ export const useChatStore = defineStore("chat", () => {
     if (nativeService.isTauri) {
       await nativeService.saveConversationToNativeDb(conv).catch(() => {});
     }
-    await getStorage().saveConversation(conv).catch(() => {});
+    await getStorage()
+      .saveConversation(conv)
+      .catch(() => {});
   }
 
   return {

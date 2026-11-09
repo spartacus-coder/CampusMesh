@@ -84,12 +84,16 @@ export class RoomCoordinator {
     if (url.pathname === "/deliver" || url.pathname === "/internal/deliver") {
       try {
         const msg = (await request.json()) as SignalingRoomMessage;
-        console.log(`[DO deliver] Received deliver for ${msg.targetFingerprint}`);
+        console.log(
+          `[DO deliver] Received deliver for ${msg.targetFingerprint}`,
+        );
         if (!msg.targetFingerprint) {
           return new Response("Missing targetFingerprint", { status: 400 });
         }
         const targetSocket = this.getSocket(msg.targetFingerprint);
-        console.log(`[DO deliver] targetSocket found? ${Boolean(targetSocket)} (active: ${this.getAllSockets().size})`);
+        console.log(
+          `[DO deliver] targetSocket found? ${Boolean(targetSocket)} (active: ${this.getAllSockets().size})`,
+        );
         if (targetSocket) {
           targetSocket.send(JSON.stringify(msg));
           return new Response(JSON.stringify({ status: "delivered_live" }), {
@@ -270,7 +274,9 @@ export class RoomCoordinator {
     if (!validateSignalingMessage(parsed)) return;
 
     const msg: SignalingRoomMessage = parsed;
-    console.log(`[DO handleMessage] From ${senderFp}, type: ${msg.type}, target: ${msg.targetFingerprint}`);
+    console.log(
+      `[DO handleMessage] From ${senderFp}, type: ${msg.type}, target: ${msg.targetFingerprint}`,
+    );
 
     if (msg.type === "ping") {
       const socket = this.getSocket(senderFp);
@@ -282,7 +288,11 @@ export class RoomCoordinator {
       return;
     }
 
-    if (msg.type === "chat_message" || msg.type === "chat_ack" || msg.type === "call_signal") {
+    if (
+      msg.type === "chat_message" ||
+      msg.type === "chat_ack" ||
+      msg.type === "call_signal"
+    ) {
       if (!msg.targetFingerprint) return;
       const targetSocket = this.getSocket(msg.targetFingerprint);
       if (targetSocket) {
@@ -361,7 +371,9 @@ export class RoomCoordinator {
 
   private async forwardOrDeposit(senderFp: string, msg: SignalingRoomMessage) {
     if (!msg.targetFingerprint) return;
-    console.log(`[DO] forwardOrDeposit from ${senderFp} to ${msg.targetFingerprint}`);
+    console.log(
+      `[DO] forwardOrDeposit from ${senderFp} to ${msg.targetFingerprint}`,
+    );
 
     if (this.env?.ROOM_COORDINATOR) {
       try {
@@ -404,7 +416,9 @@ export class RoomCoordinator {
 
     if (this.state?.storage?.list) {
       try {
-        const stored = await this.state.storage.list<MailboxRecord>({ prefix: "mbx_" });
+        const stored = await this.state.storage.list<MailboxRecord>({
+          prefix: "mbx_",
+        });
         for (const [key, record] of stored.entries()) {
           if (record.recipientFingerprint === fingerprint) {
             pending.push(record);
@@ -429,7 +443,11 @@ export class RoomCoordinator {
     }
   }
 
-  private async depositMailbox(senderFp: string, targetFp: string, data: unknown) {
+  private async depositMailbox(
+    senderFp: string,
+    targetFp: string,
+    data: unknown,
+  ) {
     this.purgeExpiredMailbox();
     if (this.mailbox.size >= SIGNALING_LIMITS.MAX_MAILBOX_MESSAGES_PER_ROOM) {
       const socket = this.getSocket(senderFp);

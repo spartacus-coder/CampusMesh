@@ -11,13 +11,13 @@ CampusMesh is a privacy-first, decentralized peer-to-peer (P2P) communication pl
 
 ## 📦 Direct Downloads & Platforms
 
-| Platform | Format | Direct Download | Target |
-| :--- | :--- | :--- | :--- |
-| **Android Mobile** | `.apk` | [**CampusMesh.apk**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh.apk) | Universal Android 8.0+ |
-| **Windows Desktop (Installer)** | `.exe` | [**CampusMesh-setup.exe**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-setup.exe) | Windows 10 / 11 (x64) |
-| **Windows Desktop (Portable)** | `.exe` | [**CampusMesh-portable.exe**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-portable.exe) | Windows 10 / 11 (Standalone) |
-| **Web App (Cloudflare Pages)** | SPA / PWA | [**https://campusmesh.pages.dev**](https://campusmesh.pages.dev) | Chrome, Firefox, Safari, Edge |
-| **Web App (GitHub Pages)** | SPA / PWA | [**https://spartacus-coder.github.io/CampusMesh/**](https://spartacus-coder.github.io/CampusMesh/) | Fallback Static Mirror |
+| Platform                        | Format    | Direct Download                                                                                                               | Target                        |
+| :------------------------------ | :-------- | :---------------------------------------------------------------------------------------------------------------------------- | :---------------------------- |
+| **Android Mobile**              | `.apk`    | [**CampusMesh.apk**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh.apk)                   | Universal Android 8.0+        |
+| **Windows Desktop (Installer)** | `.exe`    | [**CampusMesh-setup.exe**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-setup.exe)       | Windows 10 / 11 (x64)         |
+| **Windows Desktop (Portable)**  | `.exe`    | [**CampusMesh-portable.exe**](https://github.com/spartacus-coder/CampusMesh/releases/latest/download/CampusMesh-portable.exe) | Windows 10 / 11 (Standalone)  |
+| **Web App (Cloudflare Pages)**  | SPA / PWA | [**https://campusmesh.pages.dev**](https://campusmesh.pages.dev)                                                              | Chrome, Firefox, Safari, Edge |
+| **Web App (GitHub Pages)**      | SPA / PWA | [**https://spartacus-coder.github.io/CampusMesh/**](https://spartacus-coder.github.io/CampusMesh/)                            | Fallback Static Mirror        |
 
 ---
 

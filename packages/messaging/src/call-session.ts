@@ -143,7 +143,11 @@ export class CallSessionManager {
       });
 
       pc.onicecandidate = (event) => {
-        if (event.candidate && this.activeCallId && this.activePeerFingerprint) {
+        if (
+          event.candidate &&
+          this.activeCallId &&
+          this.activePeerFingerprint
+        ) {
           this.sendSignal({
             type: "call_ice",
             callId: this.activeCallId,

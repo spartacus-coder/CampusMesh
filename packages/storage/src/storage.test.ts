@@ -152,6 +152,10 @@ describe("@campusmesh/storage persistence suite", () => {
         expect(messages[0]?.id).toBe("msg-1");
         expect(messages[1]?.id).toBe("msg-2");
 
+        // Test querying with alternate id (without conv- prefix)
+        const messagesAlt = await storage.getMessages("1");
+        expect(messagesAlt).toHaveLength(2);
+
         await storage.updateMessageDeliveryState(
           "msg-1",
           DeliveryState.DELIVERED,

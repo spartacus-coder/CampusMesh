@@ -74,8 +74,12 @@ interface CampusMeshNativePluginApi {
     fingerprint: string;
     displayName: string;
   }) => Promise<unknown>;
-  keystoreEncrypt?: (options: { data: string }) => Promise<{ encrypted: string }>;
-  keystoreDecrypt?: (options: { encrypted: string }) => Promise<{ data: string }>;
+  keystoreEncrypt?: (options: {
+    data: string;
+  }) => Promise<{ encrypted: string }>;
+  keystoreDecrypt?: (options: {
+    encrypted: string;
+  }) => Promise<{ data: string }>;
   isHardwareSecurityAvailable?: () => Promise<{ isHardwareBacked: boolean }>;
   startWifiDirectDiscovery?: () => Promise<unknown>;
   stopWifiDirectDiscovery?: () => Promise<unknown>;
@@ -613,9 +617,12 @@ export const nativeService = {
       if (nativePlugin?.startBleMesh) {
         await nativePlugin.startBleMesh({ fingerprint, displayName });
         if (nativePlugin.addListener) {
-          await nativePlugin.addListener("blePeerDiscovered", (peer: BlePeer) => {
-            if (peer) onPeer(peer);
-          });
+          await nativePlugin.addListener(
+            "blePeerDiscovered",
+            (peer: BlePeer) => {
+              if (peer) onPeer(peer);
+            },
+          );
           if (onMessage) {
             await nativePlugin.addListener(
               "bleMessageReceived",

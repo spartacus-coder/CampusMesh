@@ -71,10 +71,13 @@ onUnmounted(() => {
       <div class="w-full flex items-center justify-between z-10 shrink-0">
         <Badge variant="success" class="text-[10px] gap-1 px-2.5 py-0.5">
           <ShieldCheck class="h-3 w-3" />
-          Direct P2P E2EE {{ callStore.callType === 'VIDEO' ? 'Video' : 'Voice' }}
+          Direct P2P E2EE
+          {{ callStore.callType === "VIDEO" ? "Video" : "Voice" }}
         </Badge>
 
-        <span class="font-mono text-xs text-textMuted bg-surface-subtle/80 px-2.5 py-0.5 rounded-full border border-borderSubtle">
+        <span
+          class="font-mono text-xs text-textMuted bg-surface-subtle/80 px-2.5 py-0.5 rounded-full border border-borderSubtle"
+        >
           {{
             callStore.callState === CallState.OUTGOING_RINGING
               ? "Ringing peer..."
@@ -143,10 +146,7 @@ onUnmounted(() => {
       </div>
 
       <!-- VOICE CALL DISPLAY -->
-      <div
-        v-else
-        class="flex flex-col items-center justify-center gap-5 my-2"
-      >
+      <div v-else class="flex flex-col items-center justify-center gap-5 my-2">
         <div
           class="relative flex flex-col items-center justify-center w-36 h-36 rounded-full bg-background border-2 border-primary/30 shadow-inner"
         >
@@ -182,7 +182,9 @@ onUnmounted(() => {
           :variant="callStore.isAudioMuted ? 'destructive' : 'outline'"
           size="iconSm"
           class="h-12 w-12 rounded-full shadow-md"
-          :title="callStore.isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone'"
+          :title="
+            callStore.isAudioMuted ? 'Unmute Microphone' : 'Mute Microphone'
+          "
           @click="callStore.toggleAudio()"
         >
           <MicOff v-if="callStore.isAudioMuted" class="h-5 w-5" />

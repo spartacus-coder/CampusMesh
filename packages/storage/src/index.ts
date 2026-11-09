@@ -84,7 +84,10 @@ export class InMemoryStorageAdapter implements IStoragePort {
   }
 
   async getConversation(id: string): Promise<Conversation | null> {
-    return this.conversations.get(id) ?? null;
+    const conv = this.conversations.get(id);
+    if (conv) return conv;
+    const altId = id.startsWith("conv-") ? id.slice(5) : `conv-${id}`;
+    return this.conversations.get(altId) ?? null;
   }
 
   async saveMessage(message: StoredMessage): Promise<void> {
@@ -96,10 +99,13 @@ export class InMemoryStorageAdapter implements IStoragePort {
     limit = 50,
     beforeTimestamp?: number,
   ): Promise<StoredMessage[]> {
+    const altId = conversationId.startsWith("conv-")
+      ? conversationId.slice(5)
+      : `conv-${conversationId}`;
     return Array.from(this.messages.values())
       .filter(
         (m) =>
-          m.conversationId === conversationId &&
+          (m.conversationId === conversationId || m.conversationId === altId) &&
           (beforeTimestamp === undefined || m.timestamp < beforeTimestamp),
       )
       .sort((a, b) => a.timestamp - b.timestamp)

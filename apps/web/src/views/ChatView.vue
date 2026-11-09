@@ -32,7 +32,11 @@ import {
   Badge,
   ConnectionStatusBar,
 } from "@campusmesh/ui";
-import { DeliveryState, MessageType, PeerConnectionState } from "@campusmesh/shared-types";
+import {
+  DeliveryState,
+  MessageType,
+  PeerConnectionState,
+} from "@campusmesh/shared-types";
 import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
 import AddContactModal from "../components/AddContactModal.vue";
@@ -137,10 +141,7 @@ watch(
 
 watch(
   () =>
-    [
-      activeConversation.value?.id,
-      chatStore.activeMessages.length,
-    ] as const,
+    [activeConversation.value?.id, chatStore.activeMessages.length] as const,
   ([convId]) => {
     const peerFp = activeConversation.value?.peerFingerprint;
     if (convId && peerFp) {
@@ -309,10 +310,10 @@ function handleStartVideoCall() {
             :is-online="
               Boolean(
                 conv.peerFingerprint &&
-                  (networkStore.lanPeers[conv.peerFingerprint] ||
-                    networkStore.blePeers[conv.peerFingerprint] ||
-                    (chatStore.activeConversationId === conv.id &&
-                      networkStore.peerState === PeerConnectionState.CONNECTED)),
+                (networkStore.lanPeers[conv.peerFingerprint] ||
+                  networkStore.blePeers[conv.peerFingerprint] ||
+                  (chatStore.activeConversationId === conv.id &&
+                    networkStore.peerState === PeerConnectionState.CONNECTED)),
               )
             "
           />
@@ -357,7 +358,10 @@ function handleStartVideoCall() {
     </div>
   </div>
 
-  <div v-else class="flex flex-col h-full w-full min-h-0 overflow-hidden relative">
+  <div
+    v-else
+    class="flex flex-col h-full w-full min-h-0 overflow-hidden relative"
+  >
     <!-- Main Chat Column -->
     <div
       class="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background"

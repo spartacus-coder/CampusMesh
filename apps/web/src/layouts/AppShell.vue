@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { PeerConnectionState, type Conversation } from "@campusmesh/shared-types";
+import {
+  PeerConnectionState,
+  type Conversation,
+} from "@campusmesh/shared-types";
 import { useThemeStore } from "../stores/theme";
 import { useNetworkStore } from "../stores/network";
 import { useChatStore } from "../stores/chat";
@@ -234,7 +237,9 @@ function isPeerOnline(conv: Conversation): boolean {
         >
           <div class="flex items-center justify-between mb-1.5">
             <span class="font-bold flex items-center gap-1.5">
-              <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span
+                class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"
+              ></span>
               Nearby on Campus ({{ totalNearbyCount }})
             </span>
             <span class="text-[10px] opacity-75">Air-Gapped Radios</span>
@@ -249,9 +254,14 @@ function isPeerOnline(conv: Conversation): boolean {
             >
               <div class="flex items-center gap-2 min-w-0">
                 <Avatar :name="peer.displayName" size="sm" :is-online="true" />
-                <span class="font-medium truncate text-textPrimary text-xs">{{ peer.displayName }}</span>
+                <span class="font-medium truncate text-textPrimary text-xs">{{
+                  peer.displayName
+                }}</span>
               </div>
-              <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">0ms LAN</span>
+              <span
+                class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono"
+                >0ms LAN</span
+              >
             </div>
 
             <!-- Wi-Fi Direct (High-Throughput P2P) -->
@@ -259,13 +269,28 @@ function isPeerOnline(conv: Conversation): boolean {
               v-for="peer in networkStore.wifiDirectPeers"
               :key="peer.deviceAddress"
               class="flex items-center justify-between p-1.5 rounded-lg bg-surface/80 border border-cyan-500/30 hover:bg-surface cursor-pointer transition-colors"
-              @click="selectAirGappedPeer({ id: peer.deviceAddress, name: peer.deviceName || 'Wi-Fi Direct Peer', tag: 'Wi-Fi Direct' })"
+              @click="
+                selectAirGappedPeer({
+                  id: peer.deviceAddress,
+                  name: peer.deviceName || 'Wi-Fi Direct Peer',
+                  tag: 'Wi-Fi Direct',
+                })
+              "
             >
               <div class="flex items-center gap-2 min-w-0">
-                <Avatar :name="peer.deviceName || 'Wi-Fi Direct'" size="sm" :is-online="true" />
-                <span class="font-medium truncate text-textPrimary text-xs">{{ peer.deviceName || 'Wi-Fi Direct Peer' }}</span>
+                <Avatar
+                  :name="peer.deviceName || 'Wi-Fi Direct'"
+                  size="sm"
+                  :is-online="true"
+                />
+                <span class="font-medium truncate text-textPrimary text-xs">{{
+                  peer.deviceName || "Wi-Fi Direct Peer"
+                }}</span>
               </div>
-              <span class="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono">Wi-Fi P2P</span>
+              <span
+                class="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono"
+                >Wi-Fi P2P</span
+              >
             </div>
 
             <!-- BLE Mesh (Ultra-Low Power Off-Grid) -->
@@ -273,13 +298,28 @@ function isPeerOnline(conv: Conversation): boolean {
               v-for="peer in networkStore.blePeers"
               :key="peer.deviceAddress"
               class="flex items-center justify-between p-1.5 rounded-lg bg-surface/80 border border-indigo-500/30 hover:bg-surface cursor-pointer transition-colors"
-              @click="selectAirGappedPeer({ id: peer.fingerprintHash || peer.deviceAddress, name: peer.deviceName || 'BLE Peer', tag: 'BLE Mesh' })"
+              @click="
+                selectAirGappedPeer({
+                  id: peer.fingerprintHash || peer.deviceAddress,
+                  name: peer.deviceName || 'BLE Peer',
+                  tag: 'BLE Mesh',
+                })
+              "
             >
               <div class="flex items-center gap-2 min-w-0">
-                <Avatar :name="peer.deviceName || 'BLE Mesh'" size="sm" :is-online="true" />
-                <span class="font-medium truncate text-textPrimary text-xs">{{ peer.deviceName || 'BLE Peer' }}</span>
+                <Avatar
+                  :name="peer.deviceName || 'BLE Mesh'"
+                  size="sm"
+                  :is-online="true"
+                />
+                <span class="font-medium truncate text-textPrimary text-xs">{{
+                  peer.deviceName || "BLE Peer"
+                }}</span>
               </div>
-              <span class="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">BLE Mesh</span>
+              <span
+                class="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono"
+                >BLE Mesh</span
+              >
             </div>
           </div>
         </div>
@@ -297,7 +337,11 @@ function isPeerOnline(conv: Conversation): boolean {
             "
             @click="onSelectConversation(conv.id)"
           >
-            <Avatar :name="conv.name" size="md" :is-online="isPeerOnline(conv)" />
+            <Avatar
+              :name="conv.name"
+              size="md"
+              :is-online="isPeerOnline(conv)"
+            />
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between mb-0.5">
                 <span class="text-sm font-semibold text-textPrimary truncate">{{

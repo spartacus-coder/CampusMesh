@@ -8,10 +8,13 @@ import "./style.css";
 // PWA auto-update registration (Web only — disabled in native Tauri/Capacitor to prevent stale caching)
 if (typeof window !== "undefined") {
   const isNative = Boolean(
-    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+    (window as unknown as { __TAURI_INTERNALS__?: unknown })
+      .__TAURI_INTERNALS__ ||
     (window as unknown as { __TAURI__?: unknown }).__TAURI__ ||
     window.location.origin.includes("tauri.localhost") ||
-    (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+    (
+      window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }
+    ).Capacitor?.isNativePlatform?.(),
   );
 
   if (isNative) {
