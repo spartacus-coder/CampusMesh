@@ -1,0 +1,30 @@
+{
+  "name": "@campusmesh/swarm-sidecar",
+  "version": "1.0.6",
+  "private": true,
+  "type": "module",
+  "description": "Holepunch Bare runtime sidecar for CampusMesh Desktop (Hyperswarm + HyperDHT + Corestore + Autobase)",
+  "scripts": {
+    "build": "node build-bundle.mjs"
+  },
+  "dependencies": {
+    "autobase": "^7.28.2",
+    "b4a": "^1.9.0",
+    "bare": "^1.37.0",
+    "bare-crypto": "^1.15.4",
+    "bare-fs": "^4.8.4",
+    "bare-os": "^3.9.4",
+    "bare-pack": "^3.0.2",
+    "bare-path": "^3.1.2",
+    "bare-process": "^4.5.1",
+    "compact-encoding": "^3.6.0",
+    "corestore": "^7.16.1",
+    "hyperswarm": "^4.17.2",
+    "protomux": "^3.13.1"
+  },
+  "optionalDependencies": {
+    "bare-runtime-win32-x64": "^1.37.0",
+    "bare-runtime-win32-arm64": "^1.37.0",
+    "bare-runtime-linux-x64": "^1.37.0"
+  }
+}

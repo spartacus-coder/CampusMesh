@@ -37,7 +37,6 @@ import {
   MessageType,
   PeerConnectionState,
 } from "@campusmesh/shared-types";
-import type { StoredMessage } from "@campusmesh/storage";
 import ManualSignalingModal from "../components/ManualSignalingModal.vue";
 import AddContactModal from "../components/AddContactModal.vue";
 import {
@@ -188,19 +187,19 @@ function handleSendMessage() {
       myName,
     );
   } else {
-    const newMsg: StoredMessage = {
-      id: `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      conversationId: activeConversation.value.id,
-      senderFingerprint: myFp,
-      content: inputText.value.trim(),
-      contentType: MessageType.TEXT,
-      timestamp: Date.now(),
-      deliveryState: networkStore.isOnline
-        ? DeliveryState.DELIVERED
-        : DeliveryState.SAVED_LOCALLY,
-      isOutgoing: true,
-    };
-    chatStore.appendMessage(newMsg);
+    const groupObj = contactsStore.groups.find(
+      (g) => g.id === activeConversation.value?.id,
+    );
+    const members = groupObj?.memberFingerprints ?? [];
+    void networkStore.sendGroupMessage(
+      activeConversation.value.id,
+      activeConversation.value.name,
+      members,
+      inputText.value.trim(),
+      myFp,
+      myName,
+      activeConversation.value.autobaseKey || groupObj?.autobaseKey,
+    );
   }
   nativeService.hapticFeedback();
   inputText.value = "";
@@ -780,7 +779,22 @@ async function handleStartVideoCall() {
         </h4>
         <div class="text-xs text-textSecondary space-y-1">
           <p>
-            <span class="text-textMuted">Transport:</span> WebRTC DataChannel
+            <span class="text-textMuted">Transport:</span>
+            {{
+              networkStore.swarmStatus === "online"
+                ? "Hyperswarm UTP + WebRTC + LAN TCP"
+                : networkStore.gatewayPeerFingerprint
+                  ? "WebRTC + Desktop Hybrid Gateway"
+                  : "WebRTC DataChannel + LAN"
+            }}
+          </p>
+          <p v-if="activeConversation.isGroup">
+            <span class="text-textMuted">Group Log:</span>
+            {{
+              activeConversation.groupMode === "autobase-swarm"
+                ? "Autobase Multi-Writer"
+                : "WebRTC Bounded Mesh"
+            }}
           </p>
           <p>
             <span class="text-textMuted">Encryption:</span> Double Ratchet (FS +

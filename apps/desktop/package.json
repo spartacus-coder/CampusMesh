@@ -1,11 +1,12 @@
 {
   "name": "@campusmesh/desktop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "CampusMesh Tauri 2 Desktop Container for Windows NSIS",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
+    "build:sidecar": "node swarm-sidecar/build-bundle.mjs",
     "build": "tauri build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

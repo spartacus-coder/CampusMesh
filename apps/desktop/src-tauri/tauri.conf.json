@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CampusMesh",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "identifier": "com.campusmesh.desktop",
   "build": {
     "beforeDevCommand": "pnpm --filter @campusmesh/web dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm --filter @campusmesh/web build",
+    "beforeBuildCommand": "pnpm --filter @campusmesh/web build && pnpm --filter @campusmesh/desktop build:sidecar",
     "frontendDist": "../../web/dist"
   },
   "app": {
@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "resources": ["swarm-runtime/"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

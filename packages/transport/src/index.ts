@@ -6,6 +6,7 @@
 export * from "./base45";
 export * from "./manual-signaling";
 export * from "./signaling-client";
+export * from "./swarm-adapter";
 export * from "./webrtc-transport";
 
 import type { PeerConnectionState } from "@campusmesh/shared-types";

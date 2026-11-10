@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { useThemeStore } from "../stores/theme";
 import { useIdentityStore } from "../stores/identity";
+import { useNetworkStore } from "../stores/network";
+import { nativeService } from "../services/native";
 import {
   Shield,
   Database,
@@ -16,12 +18,20 @@ import {
   Check,
   RefreshCw,
   ExternalLink,
+  Network,
 } from "lucide-vue-next";
 import { Button, Badge } from "@campusmesh/ui";
 import IdentityCardModal from "../components/IdentityCardModal.vue";
 
 const themeStore = useThemeStore();
 const identityStore = useIdentityStore();
+const networkStore = useNetworkStore();
+
+const swarmPeerCount = computed(
+  () => Object.keys(networkStore.swarmPeers).length,
+);
+const lanPeerCount = computed(() => Object.keys(networkStore.lanPeers).length);
+const isTauriDesktop = nativeService.isTauri;
 
 const showQrModal = ref(false);
 const exportPassphrase = ref("");
@@ -304,6 +314,73 @@ async function handleExportBackup() {
       </div>
     </section>
 
+    <!-- Holepunch Hyperswarm & Hybrid Gateway Diagnostics Card -->
+    <section class="rounded-xl border border-border bg-surface p-5 space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <Network class="h-5 w-5 text-primary" />
+          <div>
+            <h2 class="text-sm font-semibold text-textPrimary">
+              Holepunch Swarm & Parallel Mesh
+            </h2>
+            <p class="text-xs text-textSecondary">
+              Serverless HyperDHT discovery, Autobase replicated logs & LAN TCP.
+            </p>
+          </div>
+        </div>
+        <Badge
+          :variant="
+            networkStore.swarmStatus === 'online' ||
+            networkStore.gatewayPeerFingerprint
+              ? 'success'
+              : 'outline'
+          "
+        >
+          {{
+            isTauriDesktop
+              ? networkStore.swarmStatus === "online"
+                ? "HyperDHT Online"
+                : networkStore.swarmStatus
+              : networkStore.gatewayPeerFingerprint
+                ? "Gateway Connected"
+                : "WebRTC Direct"
+          }}
+        </Badge>
+      </div>
+
+      <div
+        class="rounded-lg bg-surface-subtle p-3 text-xs text-textSecondary space-y-1.5 border border-borderSubtle"
+      >
+        <p v-if="networkStore.swarmPublicKey">
+          <span class="text-textPrimary font-medium">Swarm Node Key:</span>
+          <span class="font-mono break-all ml-1">{{
+            networkStore.swarmPublicKey
+          }}</span>
+        </p>
+        <p>
+          <span class="text-textPrimary font-medium">Swarm UTP Peers:</span>
+          {{ swarmPeerCount }} connected
+        </p>
+        <p>
+          <span class="text-textPrimary font-medium">Local LAN Peers:</span>
+          {{ lanPeerCount }} nearby ({{
+            networkStore.isDirectLan
+              ? "Direct TCP Active"
+              : "Multicast Standby"
+          }})
+        </p>
+        <p v-if="!isTauriDesktop && networkStore.gatewayPeerFingerprint">
+          <span class="text-textPrimary font-medium">Desktop Gateway:</span>
+          <span class="font-mono ml-1">{{
+            networkStore.gatewayPeerFingerprint
+          }}</span>
+        </p>
+        <p v-if="networkStore.swarmError" class="text-amber-500">
+          {{ networkStore.swarmError }}
+        </p>
+      </div>
+    </section>
+
     <!-- Local Persistence Diagnostics Card -->
     <section class="rounded-xl border border-border bg-surface p-5 space-y-3">
       <div class="flex items-center gap-3">
@@ -339,7 +416,7 @@ async function handleExportBackup() {
             </p>
           </div>
         </div>
-        <Badge variant="outline">v1.0.5</Badge>
+        <Badge variant="outline">v1.0.6</Badge>
       </div>
       <div class="flex items-center justify-between pt-2">
         <span class="text-xs text-textSecondary">

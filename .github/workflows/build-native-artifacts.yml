@@ -13,9 +13,9 @@ on:
           - android
           - windows
       release_tag:
-        description: "Release tag (e.g. v1.0.5; defaults to v1.0.5 if omitted)"
+        description: "Release tag (e.g. v1.0.6; defaults to v1.0.6 if omitted)"
         required: false
-        default: "v1.0.5"
+        default: "v1.0.6"
   push:
     tags:
       - "v*"
@@ -72,13 +72,21 @@ jobs:
           if (-not $tag -or $tag -eq "main") {
             $tag = "${{ github.event.inputs.release_tag }}"
           }
-          if (-not $tag) { $tag = "v1.0.5" }
+          if (-not $tag) { $tag = "v1.0.6" }
           $ver = $tag.TrimStart("v")
 
           Get-ChildItem -Recurse apps/desktop/src-tauri/target/release/bundle
           if (Test-Path apps/desktop/src-tauri/target/release/campusmesh-desktop.exe) {
             Copy-Item apps/desktop/src-tauri/target/release/campusmesh-desktop.exe "apps/desktop/src-tauri/target/release/bundle/nsis/CampusMesh_${ver}_portable.exe" -Force
             Copy-Item apps/desktop/src-tauri/target/release/campusmesh-desktop.exe "apps/desktop/src-tauri/target/release/bundle/nsis/CampusMesh-portable.exe" -Force
+            if (Test-Path apps/desktop/src-tauri/swarm-runtime) {
+              $zipStage = "apps/desktop/src-tauri/target/release/portable-stage"
+              Remove-Item $zipStage -Recurse -Force -ErrorAction SilentlyContinue
+              New-Item -ItemType Directory -Force -Path $zipStage | Out-Null
+              Copy-Item apps/desktop/src-tauri/target/release/campusmesh-desktop.exe "$zipStage\CampusMesh-portable.exe" -Force
+              Copy-Item apps/desktop/src-tauri/swarm-runtime "$zipStage\swarm-runtime" -Recurse -Force
+              Compress-Archive -Path "$zipStage\*" -DestinationPath "apps/desktop/src-tauri/target/release/bundle/nsis/CampusMesh-portable-swarm.zip" -Force
+            }
           }
           $setupExe = Get-ChildItem "apps/desktop/src-tauri/target/release/bundle/nsis/*setup.exe" | Select-Object -First 1
           if ($setupExe) {
@@ -89,9 +97,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ github.ref_name != 'main' && github.ref_name || (github.event.inputs.release_tag != '' && github.event.inputs.release_tag || 'v1.0.5') }}
+          tag_name: ${{ github.ref_name != 'main' && github.ref_name || (github.event.inputs.release_tag != '' && github.event.inputs.release_tag || 'v1.0.6') }}
           files: |
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -99,7 +108,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: CampusMesh-Windows-x64-Setup
-          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.zip
 
   build-mobile-android:
     name: Build Android APK
@@ -151,7 +162,7 @@ jobs:
           if [ -z "$TAG" ] || [ "$TAG" = "main" ]; then
             TAG="${{ github.event.inputs.release_tag }}"
           fi
-          if [ -z "$TAG" ]; then TAG="v1.0.5"; fi
+          if [ -z "$TAG" ]; then TAG="v1.0.6"; fi
           VER="${TAG#v}"
 
           mkdir -p artifacts
@@ -166,7 +177,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ github.ref_name != 'main' && github.ref_name || (github.event.inputs.release_tag != '' && github.event.inputs.release_tag || 'v1.0.5') }}
+          tag_name: ${{ github.ref_name != 'main' && github.ref_name || (github.event.inputs.release_tag != '' && github.event.inputs.release_tag || 'v1.0.6') }}
           files: artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

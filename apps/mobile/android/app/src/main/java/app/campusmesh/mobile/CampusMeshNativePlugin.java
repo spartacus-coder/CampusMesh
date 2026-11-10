@@ -23,10 +23,16 @@ import app.campusmesh.mobile.mesh.WifiDirectManager;
 import app.campusmesh.mobile.security.KeystoreManager;
 import app.campusmesh.mobile.services.MeshForegroundService;
 import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.List;
 
 @CapacitorPlugin(name = "CampusMeshNative")
@@ -34,11 +40,15 @@ public class CampusMeshNativePlugin extends Plugin {
     public static final String MSG_CHANNEL_ID = "campusmesh_incoming_messages";
     public static final String MULTICAST_IP = "239.255.255.250";
     public static final int MULTICAST_PORT = 7777;
+    public static final int DEFAULT_LAN_TCP_PORT = 7778;
 
     private static int msgNotificationId = 8800;
     private WifiManager.MulticastLock multicastLock;
     private MulticastSocket multicastSocket;
+    private ServerSocket lanServerSocket;
     private Thread lanListenerThread;
+    private Thread lanTcpAcceptThread;
+    private volatile int lanTcpPort = 0;
     private volatile boolean isLanRunning = false;
 
     private WifiDirectManager wifiDirectManager;
@@ -269,6 +279,55 @@ public class CampusMeshNativePlugin extends Plugin {
             multicastSocket.joinGroup(group);
             isLanRunning = true;
 
+            // Start direct LAN TCP receiver for zero-cloud <5ms peer messaging
+            try {
+                try {
+                    lanServerSocket = new ServerSocket(DEFAULT_LAN_TCP_PORT);
+                } catch (Exception portInUse) {
+                    lanServerSocket = new ServerSocket(0);
+                }
+                lanTcpPort = lanServerSocket.getLocalPort();
+                lanTcpAcceptThread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        while (isLanRunning && lanServerSocket != null && !lanServerSocket.isClosed()) {
+                            try {
+                                final Socket conn = lanServerSocket.accept();
+                                final String remoteIp = conn.getInetAddress() != null
+                                    ? conn.getInetAddress().getHostAddress()
+                                    : "";
+                                new Thread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            BufferedReader reader = new BufferedReader(
+                                                new InputStreamReader(conn.getInputStream(), "UTF-8")
+                                            );
+                                            String line;
+                                            while ((line = reader.readLine()) != null) {
+                                                String trimmed = line.trim();
+                                                if (!trimmed.isEmpty()) {
+                                                    JSObject msgEvt = new JSObject();
+                                                    msgEvt.put("payload", trimmed);
+                                                    msgEvt.put("remoteIp", remoteIp);
+                                                    notifyListeners("lanDirectMessageReceived", msgEvt);
+                                                }
+                                            }
+                                        } catch (Exception ignored) {
+                                        } finally {
+                                            try { conn.close(); } catch (Exception ignored) {}
+                                        }
+                                    }
+                                }).start();
+                            } catch (Exception ignored) {}
+                        }
+                    }
+                });
+                lanTcpAcceptThread.start();
+            } catch (Exception ignored) {
+                lanTcpPort = 0;
+            }
+
             lanListenerThread = new Thread(new Runnable() {
                 @Override
                 public void run() {
@@ -301,6 +360,7 @@ public class CampusMeshNativePlugin extends Plugin {
 
             JSObject ret = new JSObject();
             ret.put("status", "listening");
+            ret.put("tcpPort", lanTcpPort);
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed to start LAN discovery: " + e.getMessage(), e);
@@ -311,6 +371,7 @@ public class CampusMeshNativePlugin extends Plugin {
     public void broadcastLanBeacon(PluginCall call) {
         final String fingerprint = call.getString("fingerprint", "");
         final String displayName = call.getString("displayName", "Campus User");
+        final int activePort = lanTcpPort > 0 ? lanTcpPort : MULTICAST_PORT;
 
         new Thread(new Runnable() {
             @Override
@@ -319,7 +380,7 @@ public class CampusMeshNativePlugin extends Plugin {
                     JSONObject obj = new JSONObject();
                     obj.put("fingerprint", fingerprint);
                     obj.put("display_name", displayName);
-                    obj.put("port", MULTICAST_PORT);
+                    obj.put("port", activePort);
                     obj.put("timestamp", System.currentTimeMillis());
 
                     byte[] data = obj.toString().getBytes("UTF-8");
@@ -338,9 +399,47 @@ public class CampusMeshNativePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void sendLanDirect(final PluginCall call) {
+        final String ip = call.getString("ip", "");
+        final int port = call.getInt("port", DEFAULT_LAN_TCP_PORT);
+        final String payload = call.getString("payload", "");
+        if (ip == null || ip.isEmpty() || payload == null || payload.isEmpty()) {
+            call.reject("ip and payload are required");
+            return;
+        }
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Socket socket = null;
+                try {
+                    socket = new Socket();
+                    socket.connect(new InetSocketAddress(ip, port), 3000);
+                    OutputStreamWriter writer = new OutputStreamWriter(socket.getOutputStream(), "UTF-8");
+                    writer.write(payload + "\n");
+                    writer.flush();
+                    JSObject ret = new JSObject();
+                    ret.put("sent", true);
+                    call.resolve(ret);
+                } catch (Exception e) {
+                    call.reject("LAN direct send failed: " + e.getMessage(), e);
+                } finally {
+                    if (socket != null) {
+                        try { socket.close(); } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }).start();
+    }
+
+    @PluginMethod
     public void stopLanDiscovery(PluginCall call) {
         isLanRunning = false;
+        lanTcpPort = 0;
         try {
+            if (lanServerSocket != null && !lanServerSocket.isClosed()) {
+                lanServerSocket.close();
+            }
             if (multicastSocket != null && !multicastSocket.isClosed()) {
                 multicastSocket.close();
             }

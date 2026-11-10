@@ -160,4 +160,17 @@ describe("@campusmesh/groups suite", () => {
     expect(mesh.getMemberCount()).toBe(8);
     expect(mesh.addMember("peer-overflow")).toBe(false);
   });
+
+  it("should allow 50+ peer groups when using autobase-swarm mode", async () => {
+    const members = Array.from({ length: 55 }, (_, i) => `fp-peer-${i}`);
+    const swarmGroup = await manager.createGroup({
+      name: "University Campus Commons",
+      mode: "autobase-swarm",
+      initialMemberFingerprints: members,
+    });
+
+    expect(swarmGroup.mode).toBe("autobase-swarm");
+    expect(swarmGroup.maxMembers).toBe(100);
+    expect(swarmGroup.memberFingerprints.length).toBe(56); // owner + 55 peers
+  });
 });

@@ -21,6 +21,13 @@ import {
 import {
   SignalingClient,
   WebRtcPeerTransport,
+  DesktopIpcSwarmAdapter,
+  WebRtcSwarmGatewayAdapter,
+  deriveTopicHex,
+  uint8ToBase64,
+  base64ToUint8,
+  type SwarmPeerInfo,
+  type SwarmGatewayControlPacket,
   exportManualSignal,
   importManualSignal,
 } from "@campusmesh/transport";
@@ -38,10 +45,23 @@ export const useNetworkStore = defineStore("network", () => {
   const lanPeers = ref<Record<string, LanPeer>>({});
   const wifiDirectPeers = ref<WifiDirectPeer[]>([]);
   const blePeers = ref<Record<string, BlePeer>>({});
+  const swarmStatus = ref<"offline" | "starting" | "online" | "unavailable">(
+    "offline",
+  );
+  const swarmPublicKey = ref<string | null>(null);
+  const swarmError = ref<string | null>(null);
+  const swarmPeers = ref<Record<string, SwarmPeerInfo>>({});
+  const gatewayPeerFingerprint = ref<string | null>(null);
+  const autobaseGroupKeys = ref<Record<string, string>>({});
   let lanInterval: ReturnType<typeof setInterval> | null = null;
+  let swarmListenersInitialized = false;
 
   let signalingClient: SignalingClient | null = null;
   let peerTransport: WebRtcPeerTransport | null = null;
+  let desktopSwarmAdapter: DesktopIpcSwarmAdapter | null = null;
+  let gatewaySwarmAdapter: WebRtcSwarmGatewayAdapter | null = null;
+  const gatewayClientTopics = new Map<string, Set<string>>(); // gatewayClientPeerFp -> topics
+  const gatewayClientAutobases = new Map<string, Set<string>>(); // groupId -> gateway client peerFps
 
   function setOnline(online: boolean) {
     isOnline.value = online;
@@ -129,13 +149,224 @@ export const useNetworkStore = defineStore("network", () => {
     }
   }
 
+  function resolveIncomingConversationId(
+    rawConvId: unknown,
+    senderFp: string,
+  ): string {
+    if (
+      typeof rawConvId === "string" &&
+      (rawConvId.startsWith("grp-") || rawConvId === "conv_general")
+    ) {
+      return rawConvId;
+    }
+    return `conv-${senderFp}`;
+  }
+
+  function ingestIncomingChatPayload(
+    msg: Record<string, unknown>,
+    fallbackSenderFp: string,
+    opts: { sendAck?: boolean; notify?: boolean } = {},
+  ) {
+    const senderFp = (msg.senderFingerprint as string) || fallbackSenderFp;
+    if (!senderFp) return;
+
+    // Ignore loopback echoes of our own identity in broadcasts/Autobase
+    try {
+      const myFp = useIdentityStore().identity?.fingerprint;
+      if (myFp && senderFp === myFp && msg.isEcho !== false) {
+        return;
+      }
+    } catch {
+      // Ignore
+    }
+
+    const explicitAlias = (msg.senderDisplayName as string) || "";
+    const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
+    const msgId = (msg.id as string) || `m_${Date.now()}`;
+    const convId = resolveIncomingConversationId(msg.conversationId, senderFp);
+
+    const groupMeta =
+      typeof msg.groupName === "string" || typeof msg.autobaseKey === "string"
+        ? {
+            ...(typeof msg.groupName === "string"
+              ? { groupName: msg.groupName }
+              : {}),
+            ...(typeof msg.autobaseKey === "string"
+              ? { autobaseKey: msg.autobaseKey }
+              : {}),
+          }
+        : undefined;
+
+    if (typeof msg.autobaseKey === "string" && convId.startsWith("grp-")) {
+      autobaseGroupKeys.value[convId] = msg.autobaseKey;
+      if (nativeService.isTauri && swarmStatus.value === "online") {
+        void openAutobaseGroup(convId, msg.autobaseKey);
+      }
+    }
+
+    const chatStore = useChatStore();
+    void chatStore.appendMessage(
+      {
+        id: msgId,
+        conversationId: convId,
+        senderFingerprint: senderFp,
+        recipientFingerprint: msg.recipientFingerprint as string | undefined,
+        content: (msg.content as string) || "",
+        contentType: (msg.contentType as MessageType) || MessageType.TEXT,
+        timestamp: (msg.timestamp as number) || Date.now(),
+        deliveryState: DeliveryState.DELIVERED,
+        isOutgoing: false,
+      },
+      explicitAlias || senderName,
+      groupMeta,
+    );
+
+    if (opts.notify !== false) {
+      void nativeService.hapticFeedback();
+      void nativeService.notifyMessage(
+        typeof msg.groupName === "string"
+          ? `${msg.groupName} (${senderName})`
+          : senderName,
+        (msg.content as string) || "Encrypted message",
+        convId,
+      );
+    }
+
+    if (opts.sendAck !== false && !convId.startsWith("grp-")) {
+      sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, convId);
+    }
+  }
+
+  function sendControlToPeer(
+    targetFp: string,
+    packet: SwarmGatewayControlPacket,
+  ): boolean {
+    if (!peerTransport) return false;
+    const bytes = new TextEncoder().encode(JSON.stringify(packet));
+    return peerTransport.sendData(targetFp, "cm-control", bytes);
+  }
+
+  function ensureGatewayAdapter() {
+    if (!gatewaySwarmAdapter) {
+      gatewaySwarmAdapter = new WebRtcSwarmGatewayAdapter({
+        sendControlPacket: (target, pkt) => sendControlToPeer(target, pkt),
+        getConnectedPeers: () => peerTransport?.getActivePeers() ?? [],
+      });
+      gatewaySwarmAdapter.on("peer-joined", (peer) => {
+        if (peer.isGateway) {
+          gatewayPeerFingerprint.value = peer.peerId;
+        }
+        swarmPeers.value = {
+          ...swarmPeers.value,
+          [peer.peerId]: peer,
+        };
+      });
+      gatewaySwarmAdapter.on("data", (fromPeerId, bytes) => {
+        try {
+          const text = new TextDecoder().decode(bytes);
+          const msg = JSON.parse(text) as Record<string, unknown>;
+          ingestIncomingChatPayload(msg, fromPeerId);
+        } catch {
+          // Ignore malformed swarm frame
+        }
+      });
+    }
+    return gatewaySwarmAdapter;
+  }
+
+  function handleGatewayServerPacket(
+    clientPeerFp: string,
+    packet: SwarmGatewayControlPacket,
+  ) {
+    if (!nativeService.isTauri) return;
+
+    if (packet.type === "swarm_join" && packet.topicHex) {
+      let set = gatewayClientTopics.get(clientPeerFp);
+      if (!set) {
+        set = new Set();
+        gatewayClientTopics.set(clientPeerFp, set);
+      }
+      set.add(packet.topicHex);
+      void nativeService.sendSwarmCommand("join_topic", {
+        topicHex: packet.topicHex,
+      });
+    } else if (packet.type === "swarm_leave" && packet.topicHex) {
+      gatewayClientTopics.get(clientPeerFp)?.delete(packet.topicHex);
+    } else if (
+      packet.type === "swarm_publish" &&
+      packet.topicHex &&
+      typeof packet.payload === "string"
+    ) {
+      void nativeService.sendSwarmCommand("broadcast_topic", {
+        topicHex: packet.topicHex,
+        payloadBase64: packet.payload,
+      });
+    } else if (packet.type === "autobase_open" && packet.groupId) {
+      let clients = gatewayClientAutobases.get(packet.groupId);
+      if (!clients) {
+        clients = new Set();
+        gatewayClientAutobases.set(packet.groupId, clients);
+      }
+      clients.add(clientPeerFp);
+      void openAutobaseGroup(packet.groupId, packet.bootstrapKeyHex).then(
+        async (res) => {
+          const hist = await nativeService.sendSwarmCommand<{
+            entries?: Array<Record<string, unknown>>;
+          }>("autobase_history", { groupId: packet.groupId, limit: 50 });
+          if (hist?.entries) {
+            for (const entry of hist.entries) {
+              sendControlToPeer(clientPeerFp, {
+                type: "autobase_entry",
+                groupId: packet.groupId,
+                payload: entry,
+              });
+            }
+          }
+          if (res?.autobaseKey) {
+            sendControlToPeer(clientPeerFp, {
+              type: "swarm_gateway_hello",
+              swarmPublicKey: res.autobaseKey,
+              groupId: packet.groupId,
+            });
+          }
+        },
+      );
+    } else if (
+      packet.type === "autobase_append" &&
+      packet.groupId &&
+      packet.payload
+    ) {
+      void nativeService.sendSwarmCommand("autobase_append", {
+        groupId: packet.groupId,
+        entry: packet.payload,
+      });
+    }
+  }
+
   function initTransport() {
     if (typeof RTCPeerConnection === "undefined") return;
+    ensureGatewayAdapter();
 
     if (!peerTransport) {
       peerTransport = new WebRtcPeerTransport();
       peerTransport.onStateChange = (_fp, state) => {
         peerState.value = state;
+      };
+      peerTransport.onControlChannelOpen = (peerFp) => {
+        // Advertise Desktop Hybrid Gateway if running Holepunch sidecar
+        if (nativeService.isTauri && swarmStatus.value === "online") {
+          let myFp = "";
+          try {
+            myFp = useIdentityStore().identity?.fingerprint || "";
+          } catch {
+            // Ignore
+          }
+          sendControlToPeer(peerFp, {
+            type: "swarm_gateway_hello",
+            gatewayFingerprint: myFp,
+            swarmPublicKey: swarmPublicKey.value || undefined,
+          });
+        }
       };
       peerTransport.onIceCandidate = (peerFp, candidate) => {
         if (
@@ -165,6 +396,33 @@ export const useNetworkStore = defineStore("network", () => {
               );
             } else if (packet.type === "call_signal" && packet.signal) {
               handleIncomingCallSignalFrame(peerFp, packet.signal);
+            } else if (
+              packet.type === "swarm_gateway_hello" ||
+              packet.type === "swarm_deliver"
+            ) {
+              ensureGatewayAdapter().handleControlPacket(
+                peerFp,
+                packet as unknown as SwarmGatewayControlPacket,
+              );
+            } else if (
+              packet.type === "autobase_entry" &&
+              packet.payload &&
+              typeof packet.payload === "object"
+            ) {
+              ingestIncomingChatPayload(
+                packet.payload as Record<string, unknown>,
+                peerFp,
+                { sendAck: false },
+              );
+            } else if (
+              typeof packet.type === "string" &&
+              (packet.type.startsWith("swarm_") ||
+                packet.type.startsWith("autobase_"))
+            ) {
+              handleGatewayServerPacket(
+                peerFp,
+                packet as unknown as SwarmGatewayControlPacket,
+              );
             }
           } catch {
             // Ignore malformed control packet
@@ -174,40 +432,8 @@ export const useNetworkStore = defineStore("network", () => {
         if (channel === "cm-messages") {
           try {
             const text = new TextDecoder().decode(data);
-            const msg = JSON.parse(text);
-            const msgId = msg.id || `m_${Date.now()}`;
-            const senderName = resolvePeerDisplayName(
-              peerFp,
-              msg.senderDisplayName as string | undefined,
-            );
-            const explicitAlias = (msg.senderDisplayName as string) || "";
-            const chatStore = useChatStore();
-            void chatStore.appendMessage(
-              {
-                id: msgId,
-                conversationId: `conv-${peerFp}`,
-                senderFingerprint: peerFp,
-                recipientFingerprint: msg.recipientFingerprint,
-                content: msg.content,
-                contentType: msg.contentType || MessageType.TEXT,
-                timestamp: msg.timestamp || Date.now(),
-                deliveryState: DeliveryState.DELIVERED,
-                isOutgoing: false,
-              },
-              explicitAlias || senderName,
-            );
-            void nativeService.hapticFeedback();
-            void nativeService.notifyMessage(
-              senderName,
-              msg.content || "Encrypted message",
-              `conv-${peerFp}`,
-            );
-            sendDeliveryAck(
-              peerFp,
-              msgId,
-              DeliveryState.DELIVERED,
-              `conv-${peerFp}`,
-            );
+            const msg = JSON.parse(text) as Record<string, unknown>;
+            ingestIncomingChatPayload(msg, peerFp);
           } catch (err) {
             console.warn("Failed to process incoming P2P message:", err);
           }
@@ -248,40 +474,9 @@ export const useNetworkStore = defineStore("network", () => {
         try {
           const msg =
             typeof data === "string"
-              ? JSON.parse(data)
+              ? (JSON.parse(data) as Record<string, unknown>)
               : (data as Record<string, unknown>);
-          const senderFp = (msg.senderFingerprint as string) || _senderFp;
-          const explicitAlias = (msg.senderDisplayName as string) || "";
-          const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
-          const msgId = (msg.id as string) || `m_${Date.now()}`;
-          const chatStore = useChatStore();
-          void chatStore.appendMessage(
-            {
-              id: msgId,
-              conversationId: `conv-${senderFp}`,
-              senderFingerprint: senderFp,
-              recipientFingerprint: msg.recipientFingerprint as
-                string | undefined,
-              content: (msg.content as string) || "",
-              contentType: (msg.contentType as MessageType) || MessageType.TEXT,
-              timestamp: (msg.timestamp as number) || Date.now(),
-              deliveryState: DeliveryState.DELIVERED,
-              isOutgoing: false,
-            },
-            explicitAlias || senderName,
-          );
-          void nativeService.hapticFeedback();
-          void nativeService.notifyMessage(
-            senderName,
-            (msg.content as string) || "Encrypted message",
-            `conv-${senderFp}`,
-          );
-          sendDeliveryAck(
-            senderFp,
-            msgId,
-            DeliveryState.DELIVERED,
-            `conv-${senderFp}`,
-          );
+          ingestIncomingChatPayload(msg, _senderFp);
         } catch (err) {
           console.warn(
             "Failed to process incoming signaling chat message:",
@@ -312,7 +507,6 @@ export const useNetworkStore = defineStore("network", () => {
       };
 
       signalingClient.onMailboxMessages = (records) => {
-        const chatStore = useChatStore();
         for (const rec of records) {
           try {
             const r = rec as { envelope?: string; senderFingerprint?: string };
@@ -330,35 +524,9 @@ export const useNetworkStore = defineStore("network", () => {
               continue;
             }
             if (!msg.content && !msg.contentType) continue;
-            const senderFp =
-              (msg.senderFingerprint as string) ||
-              r.senderFingerprint ||
-              "peer";
-            const explicitAlias = (msg.senderDisplayName as string) || "";
-            const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
-            const msgId = (msg.id as string) || `m_${Date.now()}`;
-            void chatStore.appendMessage(
-              {
-                id: msgId,
-                conversationId: `conv-${senderFp}`,
-                senderFingerprint: senderFp,
-                recipientFingerprint: msg.recipientFingerprint as
-                  string | undefined,
-                content: (msg.content as string) || "",
-                contentType:
-                  (msg.contentType as MessageType) || MessageType.TEXT,
-                timestamp: (msg.timestamp as number) || Date.now(),
-                deliveryState: DeliveryState.DELIVERED,
-                isOutgoing: false,
-              },
-              explicitAlias || senderName,
-            );
-            sendDeliveryAck(
-              senderFp,
-              msgId,
-              DeliveryState.DELIVERED,
-              `conv-${senderFp}`,
-            );
+            ingestIncomingChatPayload(msg, r.senderFingerprint || "peer", {
+              notify: false,
+            });
           } catch {
             // Ignore malformed mailbox record
           }
@@ -549,14 +717,46 @@ export const useNetworkStore = defineStore("network", () => {
       recipientFingerprint,
     };
 
+    const jsonStr = JSON.stringify(payload);
     let delivered = false;
-    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    const bytes = new TextEncoder().encode(jsonStr);
     if (peerTransport) {
       delivered = peerTransport.sendData(
         recipientFingerprint,
         "cm-messages",
         bytes,
       );
+    }
+
+    // Direct LAN TCP socket delivery (<5ms zero-cloud) if peer discovered on local Wi-Fi
+    const lanPeer = lanPeers.value[recipientFingerprint];
+    if (lanPeer?.ip && lanPeer.port > 0) {
+      void nativeService
+        .sendLanDirect(lanPeer.ip, lanPeer.port, jsonStr)
+        .then((ok) => {
+          if (ok) {
+            setDirectLan(true);
+          }
+        });
+    }
+
+    // Holepunch Hyperswarm Direct/Topic delivery (Desktop .exe native or via Hybrid Gateway)
+    const encodedBase64 = uint8ToBase64(bytes);
+    if (desktopSwarmAdapter && swarmStatus.value === "online") {
+      void desktopSwarmAdapter
+        .sendDirect(recipientFingerprint, bytes)
+        .catch(() => {});
+      void deriveTopicHex("cm:peer", recipientFingerprint).then((topicHex) => {
+        void desktopSwarmAdapter?.broadcast(topicHex, bytes).catch(() => {});
+      });
+    } else if (gatewaySwarmAdapter?.getGatewayPeer()) {
+      void deriveTopicHex("cm:peer", recipientFingerprint).then((topicHex) => {
+        sendControlToPeer(gatewaySwarmAdapter!.getGatewayPeer()!, {
+          type: "swarm_publish",
+          topicHex,
+          payload: encodedBase64,
+        });
+      });
     }
 
     // Also transmit via signaling gateway to guarantee delivery over 4G/5G mobile carrier NAT
@@ -566,9 +766,7 @@ export const useNetworkStore = defineStore("network", () => {
 
     // Also transmit via Air-Gapped Wi-Fi Direct if active
     if (nativeService.isAndroid && isAirGappedMeshActive.value) {
-      nativeService
-        .sendWifiDirectMessage(JSON.stringify(payload))
-        .catch(() => {});
+      nativeService.sendWifiDirectMessage(jsonStr).catch(() => {});
     }
 
     const storedMsg: StoredMessage = {
@@ -584,7 +782,110 @@ export const useNetworkStore = defineStore("network", () => {
     };
 
     const chatStore = useChatStore();
-    chatStore.appendMessage(storedMsg);
+    void chatStore.appendMessage(storedMsg);
+    return storedMsg;
+  }
+
+  async function sendGroupMessage(
+    conversationId: string,
+    groupName: string,
+    memberFingerprints: string[],
+    text: string,
+    localFingerprint: string,
+    senderDisplayName?: string,
+    autobaseKey?: string,
+  ): Promise<StoredMessage> {
+    let resolvedAlias = senderDisplayName?.trim();
+    if (!resolvedAlias) {
+      try {
+        resolvedAlias = useIdentityStore().identity?.displayName?.trim();
+      } catch {
+        // Ignore
+      }
+    }
+
+    const messageId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const timestamp = Date.now();
+    const resolvedAutobaseKey =
+      autobaseKey || autobaseGroupKeys.value[conversationId];
+
+    const payload: Record<string, unknown> = {
+      id: messageId,
+      conversationId,
+      groupName,
+      content: text,
+      contentType: MessageType.TEXT,
+      timestamp,
+      senderFingerprint: localFingerprint,
+      senderDisplayName: resolvedAlias || undefined,
+      isEcho: true,
+      ...(resolvedAutobaseKey ? { autobaseKey: resolvedAutobaseKey } : {}),
+    };
+
+    const jsonStr = JSON.stringify(payload);
+    const bytes = new TextEncoder().encode(jsonStr);
+
+    // 1. Replicate into Holepunch Autobase Log if open (50+ peer scalable gossip)
+    if (nativeService.isTauri && swarmStatus.value === "online") {
+      try {
+        if (!autobaseGroupKeys.value[conversationId]) {
+          await openAutobaseGroup(conversationId, resolvedAutobaseKey);
+        }
+        await nativeService.sendSwarmCommand("autobase_append", {
+          groupId: conversationId,
+          entry: payload,
+        });
+      } catch {
+        // Fall through to topic broadcast
+      }
+      const topicHex = await deriveTopicHex("cm:group", conversationId);
+      await desktopSwarmAdapter?.joinSwarm(topicHex).catch(() => {});
+      await desktopSwarmAdapter?.broadcast(topicHex, bytes).catch(() => {});
+    } else if (gatewaySwarmAdapter?.getGatewayPeer()) {
+      const gwPeer = gatewaySwarmAdapter.getGatewayPeer()!;
+      sendControlToPeer(gwPeer, {
+        type: "autobase_append",
+        groupId: conversationId,
+        payload,
+      });
+      const topicHex = await deriveTopicHex("cm:group", conversationId);
+      await gatewaySwarmAdapter.broadcast(topicHex, bytes);
+    }
+
+    // 2. Parallel direct fan-out over WebRTC, LAN TCP & Signaling for online group members
+    for (const memberFp of memberFingerprints) {
+      if (!memberFp || memberFp === localFingerprint) continue;
+      if (peerTransport) {
+        peerTransport.sendData(memberFp, "cm-messages", bytes);
+      }
+      const lp = lanPeers.value[memberFp];
+      if (lp?.ip && lp.port > 0) {
+        void nativeService.sendLanDirect(lp.ip, lp.port, jsonStr);
+      }
+      if (
+        signalingClient &&
+        signalingState.value === SignalingState.CONNECTED
+      ) {
+        signalingClient.sendChatMessage(memberFp, payload);
+      }
+    }
+
+    const storedMsg: StoredMessage = {
+      id: messageId,
+      conversationId,
+      senderFingerprint: localFingerprint,
+      content: text,
+      contentType: MessageType.TEXT,
+      timestamp,
+      deliveryState: DeliveryState.SENT,
+      isOutgoing: true,
+    };
+
+    const chatStore = useChatStore();
+    void chatStore.appendMessage(storedMsg, undefined, {
+      groupName,
+      ...(resolvedAutobaseKey ? { autobaseKey: resolvedAutobaseKey } : {}),
+    });
     return storedMsg;
   }
 
@@ -594,12 +895,19 @@ export const useNetworkStore = defineStore("network", () => {
   ) {
     if (!nativeService.isNative) return;
 
-    await nativeService.startLanDiscovery(localFingerprint, (peer) => {
-      lanPeers.value = {
-        ...lanPeers.value,
-        [peer.fingerprint]: peer,
-      };
-    });
+    await nativeService.startLanDiscovery(
+      localFingerprint,
+      (peer) => {
+        lanPeers.value = {
+          ...lanPeers.value,
+          [peer.fingerprint]: peer,
+        };
+      },
+      (payload, remoteIp) => {
+        setDirectLan(true);
+        handleIncomingMeshPayload(payload, `lan_${remoteIp}`);
+      },
+    );
 
     // Broadcast immediate beacon, then recurring every 10s
     await nativeService.broadcastLanBeacon(localFingerprint, displayName);
@@ -615,6 +923,229 @@ export const useNetworkStore = defineStore("network", () => {
       lanInterval = null;
     }
     await nativeService.stopLanDiscovery();
+  }
+
+  async function openAutobaseGroup(
+    groupId: string,
+    bootstrapKeyHex?: string,
+  ): Promise<{ autobaseKey?: string; discoveryKey?: string } | null> {
+    if (nativeService.isTauri && swarmStatus.value === "online") {
+      try {
+        const res = await nativeService.sendSwarmCommand<{
+          autobaseKey?: string;
+          discoveryKey?: string;
+        }>("autobase_open", {
+          groupId,
+          ...(bootstrapKeyHex ? { bootstrapKeyHex } : {}),
+        });
+        if (res?.autobaseKey) {
+          autobaseGroupKeys.value = {
+            ...autobaseGroupKeys.value,
+            [groupId]: res.autobaseKey,
+          };
+        }
+        const hist = await nativeService.sendSwarmCommand<{
+          entries?: Array<Record<string, unknown>>;
+        }>("autobase_history", { groupId, limit: 100 });
+        if (hist?.entries) {
+          for (const entry of hist.entries) {
+            ingestIncomingChatPayload(entry, "autobase", { notify: false });
+          }
+        }
+        return res;
+      } catch (err) {
+        console.warn("[Swarm] Failed opening Autobase group:", err);
+      }
+    } else if (gatewaySwarmAdapter?.getGatewayPeer()) {
+      sendControlToPeer(gatewaySwarmAdapter.getGatewayPeer()!, {
+        type: "autobase_open",
+        groupId,
+        ...(bootstrapKeyHex ? { bootstrapKeyHex } : {}),
+      });
+    }
+    return null;
+  }
+
+  async function startHolepunchSwarm(
+    localFingerprint: string,
+    displayName: string,
+  ): Promise<void> {
+    if (!nativeService.isTauri) return;
+    if (swarmStatus.value === "online" || swarmStatus.value === "starting") {
+      return;
+    }
+
+    swarmStatus.value = "starting";
+    swarmError.value = null;
+
+    if (!swarmListenersInitialized) {
+      swarmListenersInitialized = true;
+
+      await nativeService.onSwarmEvent("swarm-status", (evt) => {
+        if (typeof evt.swarmPublicKey === "string") {
+          swarmPublicKey.value = evt.swarmPublicKey;
+        }
+        if (evt.status === "online") {
+          swarmStatus.value = "online";
+        }
+      });
+
+      await nativeService.onSwarmEvent("swarm-peer-joined", (evt) => {
+        const peerId = String(evt.peerId || evt.swarmPublicKey || "");
+        if (!peerId) return;
+        const info: SwarmPeerInfo = {
+          peerId,
+          discoveryKey: String(evt.discoveryKey || ""),
+          connectionType: "direct-utp",
+          ...(typeof evt.displayName === "string"
+            ? { displayName: evt.displayName }
+            : {}),
+        };
+        swarmPeers.value = {
+          ...swarmPeers.value,
+          [peerId]: info,
+        };
+        desktopSwarmAdapter?.emitPeerJoined(info);
+      });
+
+      await nativeService.onSwarmEvent("swarm-peer-left", (evt) => {
+        const peerId = String(evt.peerId || "");
+        if (!peerId) return;
+        const copy = { ...swarmPeers.value };
+        delete copy[peerId];
+        swarmPeers.value = copy;
+        desktopSwarmAdapter?.emitPeerLeft(peerId);
+      });
+
+      await nativeService.onSwarmEvent("swarm-data", (evt) => {
+        const peerId = String(evt.peerId || "swarm");
+        const b64 = evt.payloadBase64;
+        if (typeof b64 !== "string") return;
+        const bytes = base64ToUint8(b64);
+        desktopSwarmAdapter?.emitData(peerId, bytes);
+        try {
+          const parsed = JSON.parse(new TextDecoder().decode(bytes)) as Record<
+            string,
+            unknown
+          >;
+          ingestIncomingChatPayload(parsed, peerId);
+        } catch {
+          // Non-JSON raw payload
+        }
+        // Bridge to any Web/APK Hybrid Gateway clients subscribed to this topic
+        const topicHex =
+          typeof evt.topicHex === "string" ? evt.topicHex : undefined;
+        if (topicHex) {
+          for (const [clientFp, set] of gatewayClientTopics.entries()) {
+            if (set.has(topicHex)) {
+              sendControlToPeer(clientFp, {
+                type: "swarm_deliver",
+                topicHex,
+                senderFingerprint: peerId,
+                payload: b64,
+              });
+            }
+          }
+        }
+      });
+
+      await nativeService.onSwarmEvent("autobase-entry", (evt) => {
+        const entry = evt.entry as Record<string, unknown> | undefined;
+        const groupId = typeof evt.groupId === "string" ? evt.groupId : "";
+        if (entry) {
+          ingestIncomingChatPayload(entry, "autobase");
+          if (groupId) {
+            const clients = gatewayClientAutobases.get(groupId);
+            if (clients) {
+              for (const clientFp of clients) {
+                sendControlToPeer(clientFp, {
+                  type: "autobase_entry",
+                  groupId,
+                  payload: entry,
+                });
+              }
+            }
+          }
+        }
+      });
+    }
+
+    const snap = await nativeService.startHolepunchSwarm();
+    if (!snap || !snap.available || !snap.running) {
+      swarmStatus.value = "unavailable";
+      swarmError.value =
+        snap?.last_error ||
+        "Holepunch Bare runtime is only bundled in full NSIS Desktop builds.";
+      return;
+    }
+
+    try {
+      const initRes = await nativeService.sendSwarmCommand<{
+        status?: string;
+        swarmPublicKey?: string;
+      }>("init", { localFingerprint, displayName });
+
+      if (initRes?.swarmPublicKey) {
+        swarmPublicKey.value = initRes.swarmPublicKey;
+      }
+      swarmStatus.value = "online";
+
+      desktopSwarmAdapter = new DesktopIpcSwarmAdapter({
+        joinSwarm: async (topicHex) => {
+          await nativeService.sendSwarmCommand("join_topic", { topicHex });
+        },
+        leaveSwarm: async (topicHex) => {
+          await nativeService.sendSwarmCommand("leave_topic", { topicHex });
+        },
+        broadcast: async (topicHex, payloadBase64) => {
+          await nativeService.sendSwarmCommand("broadcast_topic", {
+            topicHex,
+            payloadBase64,
+          });
+        },
+        sendDirect: async (peerId, payloadBase64) => {
+          await nativeService.sendSwarmCommand("send_direct", {
+            peerId,
+            payloadBase64,
+          });
+        },
+        destroy: async () => {
+          await nativeService.stopHolepunchSwarm();
+        },
+      });
+
+      // Join direct inbox topic + campus discovery topic + existing Autobase groups
+      const selfTopic = await deriveTopicHex("cm:peer", localFingerprint);
+      const campusTopic = await deriveTopicHex("cm:campus", "global");
+      await desktopSwarmAdapter.joinSwarm(selfTopic);
+      await desktopSwarmAdapter.joinSwarm(campusTopic);
+
+      // Re-open any existing Swarm groups in Autobase Corestore
+      try {
+        const contactsStore = useContactsStore();
+        for (const g of contactsStore.groups) {
+          if (g.mode === "autobase-swarm") {
+            await openAutobaseGroup(g.id, g.autobaseKey);
+          }
+        }
+      } catch {
+        // Ignore if groups not hydrated yet
+      }
+
+      // Notify already-connected WebRTC peers that this desktop node is an active Hybrid Gateway
+      if (peerTransport) {
+        for (const peerFp of peerTransport.getActivePeers()) {
+          sendControlToPeer(peerFp, {
+            type: "swarm_gateway_hello",
+            gatewayFingerprint: localFingerprint,
+            swarmPublicKey: swarmPublicKey.value || undefined,
+          });
+        }
+      }
+    } catch (err) {
+      swarmStatus.value = "unavailable";
+      swarmError.value = err instanceof Error ? err.message : String(err);
+    }
   }
 
   function sendDeliveryAck(
@@ -661,33 +1192,7 @@ export const useNetworkStore = defineStore("network", () => {
   function handleIncomingMeshPayload(rawText: string, fallbackSender: string) {
     try {
       const msg = JSON.parse(rawText) as Record<string, unknown>;
-      const senderFp = (msg.senderFingerprint as string) || fallbackSender;
-      const explicitAlias = (msg.senderDisplayName as string) || "";
-      const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
-      const msgId = (msg.id as string) || `m_${Date.now()}`;
-      const targetConvId = (msg.conversationId as string) || `conv-${senderFp}`;
-      const chatStore = useChatStore();
-      void chatStore.appendMessage(
-        {
-          id: msgId,
-          conversationId: targetConvId,
-          senderFingerprint: senderFp,
-          recipientFingerprint: msg.recipientFingerprint as string | undefined,
-          content: (msg.content as string) || "",
-          contentType: (msg.contentType as MessageType) || MessageType.TEXT,
-          timestamp: (msg.timestamp as number) || Date.now(),
-          deliveryState: DeliveryState.DELIVERED,
-          isOutgoing: false,
-        },
-        explicitAlias || senderName,
-      );
-      void nativeService.hapticFeedback();
-      void nativeService.notifyMessage(
-        senderName,
-        (msg.content as string) || "Air-Gapped Mesh message",
-        targetConvId,
-      );
-      sendDeliveryAck(senderFp, msgId, DeliveryState.DELIVERED, targetConvId);
+      ingestIncomingChatPayload(msg, fallbackSender);
     } catch {
       // Ignore unparseable raw frame
     }
@@ -699,6 +1204,10 @@ export const useNetworkStore = defineStore("network", () => {
   ) {
     isAirGappedMeshActive.value = true;
     await startLanDiscovery(localFingerprint, displayName);
+
+    if (nativeService.isTauri) {
+      void startHolepunchSwarm(localFingerprint, displayName);
+    }
 
     if (nativeService.isAndroid) {
       // 1. Wi-Fi Direct
@@ -731,6 +1240,10 @@ export const useNetworkStore = defineStore("network", () => {
   async function stopAirGappedMesh() {
     isAirGappedMeshActive.value = false;
     await stopLanDiscovery();
+    if (nativeService.isTauri) {
+      await nativeService.stopHolepunchSwarm();
+      swarmStatus.value = "offline";
+    }
     if (nativeService.isAndroid) {
       await nativeService.stopWifiDirectDiscovery();
       await nativeService.stopBleMesh();
@@ -760,6 +1273,12 @@ export const useNetworkStore = defineStore("network", () => {
     lanPeers,
     wifiDirectPeers,
     blePeers,
+    swarmStatus,
+    swarmPublicKey,
+    swarmError,
+    swarmPeers,
+    gatewayPeerFingerprint,
+    autobaseGroupKeys,
     setOnline,
     setSignalingState,
     setPeerState,
@@ -774,6 +1293,9 @@ export const useNetworkStore = defineStore("network", () => {
     acceptManualOffer,
     acceptManualAnswer,
     sendChatMessage,
+    sendGroupMessage,
+    startHolepunchSwarm,
+    openAutobaseGroup,
     startLanDiscovery,
     stopLanDiscovery,
     startAirGappedMesh,

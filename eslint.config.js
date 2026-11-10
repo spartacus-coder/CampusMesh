@@ -12,6 +12,7 @@ export default tseslint.config(
       "**/.wrangler/**",
       "**/target/**",
       "**/android/**",
+      "**/swarm-runtime/**",
       "**/*.d.ts",
     ],
   },
@@ -24,6 +25,19 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "no-console": ["warn", { allow: ["warn", "error", "info"] }],
+    },
+  },
+  {
+    files: ["apps/desktop/swarm-sidecar/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+    rules: {
+      "no-console": "off",
     },
   },
 );

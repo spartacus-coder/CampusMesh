@@ -109,7 +109,7 @@ export interface GroupMember {
 }
 
 /**
- * Bounded mesh group definition (max 8 peers for zero-cost mesh).
+ * Mesh group definition (max 8 peers for WebRTC mesh, or up to 100+ for Autobase Swarm).
  */
 export interface MeshGroup {
   id: string;
@@ -120,6 +120,9 @@ export interface MeshGroup {
   adminFingerprints: string[];
   memberFingerprints: string[];
   maxMembers: number;
+  mode?: "webrtc-mesh" | "autobase-swarm" | undefined;
+  autobaseKey?: string | undefined;
+  autobaseDiscoveryKey?: string | undefined;
   createdAt: number;
   updatedAt: number;
 }
@@ -134,6 +137,9 @@ export interface Conversation {
   avatarUrl?: string;
   peerFingerprint?: string; // For 1-to-1
   groupId?: string; // For groups
+  groupMode?: "webrtc-mesh" | "autobase-swarm" | undefined;
+  swarmTopicHex?: string | undefined;
+  autobaseKey?: string | undefined;
   lastMessagePreview?: string;
   lastMessageTimestamp?: number;
   unreadCount: number;

@@ -44,6 +44,7 @@ export class WebRtcPeerTransport {
     peerFingerprint: string,
     candidate: RTCIceCandidateInit,
   ) => void;
+  public onControlChannelOpen?: (peerFingerprint: string) => void;
 
   constructor(options: WebRtcTransportOptions = {}) {
     this.maxPeers = options.maxPeers ?? 8;
@@ -194,6 +195,9 @@ export class WebRtcPeerTransport {
 
     channel.onopen = () => {
       session.lastActivity = Date.now();
+      if (channel.label === DATA_CHANNEL_LABELS.CONTROL) {
+        this.onControlChannelOpen?.(session.peerFingerprint);
+      }
       if (
         session.controlChannel?.readyState === "open" ||
         session.messagesChannel?.readyState === "open"

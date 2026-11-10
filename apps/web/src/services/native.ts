@@ -19,6 +19,14 @@ export interface LanPeer {
   timestamp: number;
 }
 
+export interface SwarmStatusSnapshot {
+  running: boolean;
+  available: boolean;
+  runtime_path?: string | null;
+  bundle_path?: string | null;
+  last_error?: string | null;
+}
+
 export interface WifiDirectPeer {
   deviceAddress: string;
   deviceName: string;
@@ -73,6 +81,11 @@ interface CampusMeshNativePluginApi {
   broadcastLanBeacon?: (options: {
     fingerprint: string;
     displayName: string;
+  }) => Promise<unknown>;
+  sendLanDirect?: (options: {
+    ip: string;
+    port: number;
+    payload: string;
   }) => Promise<unknown>;
   keystoreEncrypt?: (options: {
     data: string;
@@ -387,12 +400,13 @@ export const nativeService = {
     }
   },
 
-  // === Zero-Server LAN Peer Discovery ===
+  // === Zero-Server LAN Peer Discovery & Direct TCP Socket Transport ===
   async startLanDiscovery(
     localFingerprint: string,
     onPeerDiscovered: (peer: LanPeer) => void,
+    onDirectMessage?: (payload: string, remoteIp: string) => void,
   ): Promise<void> {
-    // A. Desktop (Tauri 2 Rust UDP Multicast)
+    // A. Desktop (Tauri 2 Rust UDP Multicast + Direct TCP 7778)
     if (this.isTauri) {
       await tauriInvoke("lan_start_discovery", {
         localFingerprint,
@@ -403,20 +417,39 @@ export const nativeService = {
           event?: {
             listen?: (
               event: string,
-              handler: (e: { payload: LanPeer }) => void,
+              handler: (e: { payload: Record<string, unknown> }) => void,
             ) => Promise<() => void>;
           };
         };
       };
       if (w.__TAURI__?.event?.listen) {
         await w.__TAURI__.event.listen("lan-peer-discovered", (e) => {
-          if (e?.payload) onPeerDiscovered(e.payload);
+          const raw = e?.payload;
+          if (raw && typeof raw.fingerprint === "string") {
+            onPeerDiscovered({
+              fingerprint: raw.fingerprint,
+              displayName: String(
+                raw.displayName || raw.display_name || "Peer",
+              ),
+              ...(typeof raw.ip === "string" ? { ip: raw.ip } : {}),
+              port: Number(raw.port || 7778),
+              timestamp: Number(raw.timestamp || Date.now()),
+            });
+          }
         });
+        if (onDirectMessage) {
+          await w.__TAURI__.event.listen("lan-direct-message", (e) => {
+            const raw = e?.payload;
+            if (raw && typeof raw.payload === "string") {
+              onDirectMessage(raw.payload, String(raw.remote_ip || "lan"));
+            }
+          });
+        }
       }
       return;
     }
 
-    // B. Mobile (Android Native MulticastSocket)
+    // B. Mobile (Android Native MulticastSocket + ServerSocket 7778)
     if (this.isAndroid) {
       const nativePlugin = getCampusMeshPlugin();
       if (nativePlugin?.startLanDiscovery) {
@@ -428,9 +461,46 @@ export const nativeService = {
               if (peer) onPeerDiscovered(peer);
             },
           );
+          if (onDirectMessage) {
+            await nativePlugin.addListener(
+              "lanDirectMessageReceived",
+              (evt: { payload?: string; remoteIp?: string }) => {
+                if (evt?.payload) {
+                  onDirectMessage(evt.payload, evt.remoteIp || "lan");
+                }
+              },
+            );
+          }
         }
       }
     }
+  },
+
+  async sendLanDirect(
+    ip: string,
+    port: number,
+    payload: string,
+  ): Promise<boolean> {
+    if (this.isTauri) {
+      try {
+        await tauriInvoke("lan_send_direct", { ip, port, payload });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.sendLanDirect) {
+        try {
+          await nativePlugin.sendLanDirect({ ip, port, payload });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+    }
+    return false;
   },
 
   async broadcastLanBeacon(
@@ -824,5 +894,53 @@ export const nativeService = {
       chunks.push(num.toString().padStart(5, "0"));
     }
     return chunks.join("-");
+  },
+
+  // === Holepunch Hyperswarm / HyperDHT / Autobase Bare Sidecar (Desktop .exe) ===
+  async startHolepunchSwarm(): Promise<SwarmStatusSnapshot | null> {
+    if (!this.isTauri) return null;
+    return tauriInvoke<SwarmStatusSnapshot>("swarm_start");
+  },
+
+  async getSwarmStatus(): Promise<SwarmStatusSnapshot | null> {
+    if (!this.isTauri) return null;
+    return tauriInvoke<SwarmStatusSnapshot>("swarm_status");
+  },
+
+  async sendSwarmCommand<T = unknown>(
+    cmd: string,
+    params: Record<string, unknown> = {},
+  ): Promise<T | null> {
+    if (!this.isTauri) return null;
+    return tauriInvoke<T>("swarm_command", { cmd, params });
+  },
+
+  async stopHolepunchSwarm(): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("swarm_stop");
+    }
+  },
+
+  async onSwarmEvent(
+    eventName: string,
+    handler: (payload: Record<string, unknown>) => void,
+  ): Promise<(() => void) | null> {
+    if (!this.isTauri) return null;
+    const w = window as unknown as {
+      __TAURI__?: {
+        event?: {
+          listen?: (
+            event: string,
+            cb: (e: { payload: Record<string, unknown> }) => void,
+          ) => Promise<() => void>;
+        };
+      };
+    };
+    if (w.__TAURI__?.event?.listen) {
+      return await w.__TAURI__.event.listen(eventName, (e) => {
+        if (e?.payload) handler(e.payload);
+      });
+    }
+    return null;
   },
 };

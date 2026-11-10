@@ -4,11 +4,14 @@
 mod db;
 mod lan;
 mod queue;
+mod swarm;
 
 use db::{Database, DbContact, DbConversation, DbMessage};
 use lan::{LanBeacon, LanDiscoveryEngine};
 use queue::SimpleXQueue;
+use serde_json::Value;
 use std::sync::Arc;
+use swarm::{SwarmSidecarManager, SwarmStatusSnapshot};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -72,6 +75,62 @@ fn lan_stop_discovery(lan: State<'_, Arc<LanDiscoveryEngine>>) -> Result<(), Str
 }
 
 #[tauri::command]
+async fn lan_send_direct(
+    lan: State<'_, Arc<LanDiscoveryEngine>>,
+    ip: String,
+    port: u16,
+    payload: String,
+) -> Result<(), String> {
+    let engine = lan.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || engine.send_direct(&ip, port, &payload))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn swarm_start(
+    app: AppHandle,
+    swarm: State<'_, Arc<SwarmSidecarManager>>,
+) -> Result<SwarmStatusSnapshot, String> {
+    let mgr = swarm.inner().clone();
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = mgr.ensure_started(&app_clone);
+        Ok(mgr.status(&app_clone))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn swarm_command(
+    app: AppHandle,
+    swarm: State<'_, Arc<SwarmSidecarManager>>,
+    cmd: String,
+    params: Option<Value>,
+) -> Result<Value, String> {
+    let mgr = swarm.inner().clone();
+    let p = params.unwrap_or_else(|| serde_json::json!({}));
+    tauri::async_runtime::spawn_blocking(move || mgr.send_command(&app, &cmd, p))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn swarm_status(
+    app: AppHandle,
+    swarm: State<'_, Arc<SwarmSidecarManager>>,
+) -> SwarmStatusSnapshot {
+    swarm.status(&app)
+}
+
+#[tauri::command]
+fn swarm_stop(swarm: State<'_, Arc<SwarmSidecarManager>>) -> Result<(), String> {
+    swarm.stop();
+    Ok(())
+}
+
+#[tauri::command]
 fn simplex_derive_queue_id(sender: String, recipient: String, epoch: u64) -> String {
     SimpleXQueue::derive_queue_id(&sender, &recipient, epoch)
 }
@@ -110,6 +169,10 @@ fn main() {
             let lan_engine = Arc::new(LanDiscoveryEngine::new());
             app.manage(lan_engine);
 
+            // Setup Holepunch Bare Runtime Swarm Sidecar Manager
+            let swarm_manager = Arc::new(SwarmSidecarManager::new());
+            app.manage(swarm_manager);
+
             // Build system tray menu items
             let show_i = MenuItem::with_id(app, "show", "Open CampusMesh", true, None::<&str>)?;
             let hide_i = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
@@ -134,6 +197,12 @@ fn main() {
                         }
                     }
                     "quit" => {
+                        if let Some(swarm) = app.try_state::<Arc<SwarmSidecarManager>>() {
+                            swarm.stop();
+                        }
+                        if let Some(lan) = app.try_state::<Arc<LanDiscoveryEngine>>() {
+                            lan.stop();
+                        }
                         app.exit(0);
                     }
                     _ => {}
@@ -170,6 +239,11 @@ fn main() {
             lan_start_discovery,
             lan_broadcast_beacon,
             lan_stop_discovery,
+            lan_send_direct,
+            swarm_start,
+            swarm_command,
+            swarm_status,
+            swarm_stop,
             simplex_derive_queue_id,
             simplex_derive_safety_number,
             window_alert_incoming_call

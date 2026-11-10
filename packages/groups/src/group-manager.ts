@@ -6,12 +6,15 @@ import {
 import type { IStoragePort } from "@campusmesh/storage";
 
 export const MAX_GROUP_MESH_PEERS = 8;
+export const MAX_SWARM_GROUP_PEERS = 100;
 
 export interface CreateGroupOptions {
   name: string;
   description?: string | undefined;
   avatarUrl?: string | undefined;
   initialMemberFingerprints?: string[] | undefined;
+  mode?: "webrtc-mesh" | "autobase-swarm" | undefined;
+  autobaseKey?: string | undefined;
 }
 
 export class GroupManager {
@@ -29,11 +32,15 @@ export class GroupManager {
       throw new Error("Group name cannot be empty");
     }
 
+    const mode = options.mode ?? "webrtc-mesh";
+    const maxMembers =
+      mode === "autobase-swarm" ? MAX_SWARM_GROUP_PEERS : MAX_GROUP_MESH_PEERS;
+
     const members = new Set<string>([this.localFingerprint]);
     if (options.initialMemberFingerprints) {
       for (const fp of options.initialMemberFingerprints) {
-        if (members.size >= MAX_GROUP_MESH_PEERS) {
-          break; // Hard zero-cost mesh ceiling
+        if (members.size >= maxMembers) {
+          break;
         }
         members.add(fp);
       }
@@ -50,7 +57,9 @@ export class GroupManager {
       ownerFingerprint: this.localFingerprint,
       adminFingerprints: [this.localFingerprint],
       memberFingerprints: Array.from(members),
-      maxMembers: MAX_GROUP_MESH_PEERS,
+      maxMembers,
+      mode,
+      ...(options.autobaseKey ? { autobaseKey: options.autobaseKey } : {}),
       createdAt: now,
       updatedAt: now,
     };
@@ -64,6 +73,8 @@ export class GroupManager {
       name: group.name,
       ...(group.avatarUrl ? { avatarUrl: group.avatarUrl } : {}),
       groupId: groupId,
+      groupMode: mode,
+      ...(options.autobaseKey ? { autobaseKey: options.autobaseKey } : {}),
       lastMessageTimestamp: now,
       unreadCount: 0,
       isPinned: false,

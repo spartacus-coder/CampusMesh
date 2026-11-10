@@ -301,20 +301,46 @@ export const useChatStore = defineStore("chat", () => {
   async function appendMessage(
     msg: StoredMessage,
     senderDisplayName?: string,
+    groupMetadata?: { groupName?: string; autobaseKey?: string },
   ): Promise<void> {
-    const peerFp = !msg.isOutgoing
-      ? msg.senderFingerprint
-      : msg.recipientFingerprint;
+    const isGroupMsg =
+      msg.conversationId.startsWith("grp-") ||
+      msg.conversationId === "conv_general";
+    const peerFp = !isGroupMsg
+      ? !msg.isOutgoing
+        ? msg.senderFingerprint
+        : msg.recipientFingerprint
+      : undefined;
     const cleanSenderName = senderDisplayName?.trim();
 
-    // Find existing conversation by ID or matching peer fingerprint
+    // Find existing conversation by ID or (for 1-to-1 DMs) matching peer fingerprint
     let conv = conversations.value.find(
       (c) =>
-        c.id === msg.conversationId || (peerFp && c.peerFingerprint === peerFp),
+        c.id === msg.conversationId ||
+        (!isGroupMsg && !c.isGroup && peerFp && c.peerFingerprint === peerFp),
     );
 
-    // If conversation doesn't exist yet and we have a peer fingerprint, auto-create it
-    if (!conv && peerFp) {
+    if (!conv && isGroupMsg) {
+      conv = {
+        id: msg.conversationId,
+        isGroup: true,
+        groupId: msg.conversationId,
+        name: groupMetadata?.groupName || "Mesh Group",
+        groupMode: groupMetadata?.autobaseKey
+          ? "autobase-swarm"
+          : "webrtc-mesh",
+        ...(groupMetadata?.autobaseKey
+          ? { autobaseKey: groupMetadata.autobaseKey }
+          : {}),
+        lastMessagePreview: msg.content,
+        lastMessageTimestamp: msg.timestamp,
+        unreadCount: activeConversationId.value === msg.conversationId ? 0 : 1,
+        isPinned: false,
+        isArchived: false,
+      };
+      conversations.value.unshift(conv);
+    } else if (!conv && peerFp) {
+      // Auto-create 1-to-1 conversation
       const canonicalId = `conv-${peerFp}`;
       conv = {
         id: canonicalId,
@@ -332,6 +358,7 @@ export const useChatStore = defineStore("chat", () => {
       conversations.value.unshift(conv);
     } else if (
       conv &&
+      !conv.isGroup &&
       cleanSenderName &&
       !isPlaceholderPeerName(cleanSenderName) &&
       isPlaceholderPeerName(conv.name)
@@ -343,9 +370,11 @@ export const useChatStore = defineStore("chat", () => {
     // Always ensure message is filed under the true canonical conversation ID
     const targetConvId = conv
       ? conv.id
-      : peerFp
-        ? `conv-${peerFp}`
-        : msg.conversationId;
+      : isGroupMsg
+        ? msg.conversationId
+        : peerFp
+          ? `conv-${peerFp}`
+          : msg.conversationId;
     msg.conversationId = targetConvId;
 
     if (!messagesMap.value[targetConvId]) {

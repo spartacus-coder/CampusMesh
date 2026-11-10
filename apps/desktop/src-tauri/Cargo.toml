@@ -1,6 +1,6 @@
 [package]
 name = "campusmesh-desktop"
-version = "1.0.5"
+version = "1.0.6"
 description = "CampusMesh Zero-Cost P2P Desktop Application"
 edition = "2021"
 

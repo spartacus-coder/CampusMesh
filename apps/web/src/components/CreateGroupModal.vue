@@ -4,13 +4,19 @@ import { X, Users, AlertCircle, ShieldCheck, Check } from "lucide-vue-next";
 import { Button, Input, Badge, Avatar } from "@campusmesh/ui";
 import { useContactsStore } from "../stores/contacts";
 import { useChatStore } from "../stores/chat";
-import { MAX_GROUP_MESH_PEERS } from "@campusmesh/groups";
+import { useNetworkStore } from "../stores/network";
+import {
+  MAX_GROUP_MESH_PEERS,
+  MAX_SWARM_GROUP_PEERS,
+} from "@campusmesh/groups";
 
 const contactsStore = useContactsStore();
 const chatStore = useChatStore();
+const networkStore = useNetworkStore();
 
 const groupName = ref("");
 const description = ref("");
+const groupMode = ref<"webrtc-mesh" | "autobase-swarm">("autobase-swarm");
 const selectedFingerprints = ref<string[]>([]);
 const error = ref<string | null>(null);
 const isSubmitting = ref(false);
@@ -19,10 +25,15 @@ const availableContacts = computed(() => {
   return contactsStore.contacts.filter((c) => !c.isBlocked);
 });
 
-// 1 owner + selected peers <= 8
+const activeMaxPeers = computed(() =>
+  groupMode.value === "autobase-swarm"
+    ? MAX_SWARM_GROUP_PEERS
+    : MAX_GROUP_MESH_PEERS,
+);
+
 const totalMembers = computed(() => 1 + selectedFingerprints.value.length);
 const isBoundaryFull = computed(
-  () => totalMembers.value >= MAX_GROUP_MESH_PEERS,
+  () => totalMembers.value >= activeMaxPeers.value,
 );
 
 function toggleMember(fingerprint: string) {
@@ -31,7 +42,7 @@ function toggleMember(fingerprint: string) {
     selectedFingerprints.value.splice(idx, 1);
   } else {
     if (isBoundaryFull.value) {
-      error.value = `Mesh group is bounded at maximum ${MAX_GROUP_MESH_PEERS} peers for zero-cost operation.`;
+      error.value = `Mesh group is bounded at maximum ${activeMaxPeers.value} peers for zero-cost operation.`;
       return;
     }
     error.value = null;
@@ -51,11 +62,23 @@ async function handleCreateGroup() {
     isSubmitting.value = true;
     const group = await contactsStore.createGroup({
       name,
+      mode: groupMode.value,
       ...(description.value.trim()
         ? { description: description.value.trim() }
         : {}),
       initialMemberFingerprints: selectedFingerprints.value,
     });
+
+    if (groupMode.value === "autobase-swarm") {
+      const abInfo = await networkStore.openAutobaseGroup(group.id);
+      if (abInfo?.autobaseKey) {
+        const conv = chatStore.conversations.find((c) => c.id === group.id);
+        if (conv) {
+          conv.autobaseKey = abInfo.autobaseKey;
+          await chatStore.saveConversation(conv);
+        }
+      }
+    }
 
     // Reset and close
     groupName.value = "";
@@ -64,7 +87,7 @@ async function handleCreateGroup() {
     contactsStore.isCreateGroupOpen = false;
 
     // Switch to active conversation in chatStore
-    chatStore.activeConversationId = group.id;
+    await chatStore.selectConversation(group.id);
   } catch (err: unknown) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -94,8 +117,7 @@ async function handleCreateGroup() {
           <div>
             <h2 class="text-base font-bold">Create Mesh Group</h2>
             <p class="text-xs text-textMuted">
-              Decentralized peer group (Bounded at
-              {{ MAX_GROUP_MESH_PEERS }} peers)
+              Decentralized peer group (Up to {{ activeMaxPeers }} peers)
             </p>
           </div>
         </div>
@@ -109,6 +131,44 @@ async function handleCreateGroup() {
 
       <!-- Group Details -->
       <div class="flex flex-col gap-4">
+        <div>
+          <label class="text-xs font-medium text-textSecondary mb-1.5 block">
+            Swarm Topology Mode
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="rounded-xl border p-2.5 text-left transition-colors"
+              :class="
+                groupMode === 'autobase-swarm'
+                  ? 'border-primary bg-primary/10 text-textPrimary'
+                  : 'border-border bg-background text-textSecondary hover:bg-surfaceHover'
+              "
+              @click="groupMode = 'autobase-swarm'"
+            >
+              <div class="text-xs font-semibold">Autobase Swarm</div>
+              <div class="text-[10px] text-textMuted mt-0.5">
+                Up to {{ MAX_SWARM_GROUP_PEERS }} peers • HyperDHT + LAN
+              </div>
+            </button>
+            <button
+              type="button"
+              class="rounded-xl border p-2.5 text-left transition-colors"
+              :class="
+                groupMode === 'webrtc-mesh'
+                  ? 'border-primary bg-primary/10 text-textPrimary'
+                  : 'border-border bg-background text-textSecondary hover:bg-surfaceHover'
+              "
+              @click="groupMode = 'webrtc-mesh'"
+            >
+              <div class="text-xs font-semibold">Direct WebRTC Mesh</div>
+              <div class="text-[10px] text-textMuted mt-0.5">
+                Up to {{ MAX_GROUP_MESH_PEERS }} peers • Browser P2P
+              </div>
+            </button>
+          </div>
+        </div>
+
         <div>
           <label class="text-xs font-medium text-textSecondary mb-1.5 block">
             Group Name <span class="text-red-500">*</span>
@@ -142,7 +202,7 @@ async function handleCreateGroup() {
             :variant="isBoundaryFull ? 'destructive' : 'outline'"
             class="text-[10px] font-mono"
           >
-            {{ totalMembers }} / {{ MAX_GROUP_MESH_PEERS }} Peers
+            {{ totalMembers }} / {{ activeMaxPeers }} Peers
           </Badge>
         </div>
 

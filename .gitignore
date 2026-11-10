@@ -17,6 +17,8 @@ out/
 # Tauri build artifacts
 src-tauri/target/
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/swarm-runtime/
+apps/desktop/swarm-sidecar/package-lock.json
 
 # Capacitor & Native mobile
 apps/mobile/android/.gradle/

@@ -319,4 +319,87 @@ describe("Web Stores Suite", () => {
     chatStore.updatePeerDisplayName("abc12345def67890", "Rahul (Dorm 2)", true);
     expect(conv?.name).toBe("Rahul (Dorm 2)");
   });
+
+  it("chat store should isolate grp-* Autobase conversations from 1-to-1 DMs", async () => {
+    const chatStore = useChatStore();
+
+    await chatStore.appendMessage(
+      {
+        id: "m_dm_peer9",
+        conversationId: "conv-peer9999aaaabbbb",
+        senderFingerprint: "peer9999aaaabbbb",
+        content: "direct hello",
+        contentType: MessageType.TEXT,
+        timestamp: Date.now(),
+        deliveryState: DeliveryState.DELIVERED,
+        isOutgoing: false,
+      },
+      "Alice DM",
+    );
+
+    const autobaseKey = "a".repeat(64);
+    await chatStore.appendMessage(
+      {
+        id: "m_grp_1",
+        conversationId: "grp-study-101",
+        senderFingerprint: "peer9999aaaabbbb",
+        content: "group hello",
+        contentType: MessageType.TEXT,
+        timestamp: Date.now() + 50,
+        deliveryState: DeliveryState.DELIVERED,
+        isOutgoing: false,
+      },
+      "Alice DM",
+      { groupName: "CS101 Swarm", autobaseKey },
+    );
+
+    const dmConv = chatStore.conversations.find(
+      (c) => c.id === "conv-peer9999aaaabbbb",
+    );
+    const grpConv = chatStore.conversations.find(
+      (c) => c.id === "grp-study-101",
+    );
+
+    expect(dmConv?.name).toBe("Alice DM");
+    expect(dmConv?.lastMessagePreview).toBe("direct hello");
+    expect(grpConv).toBeDefined();
+    expect(grpConv?.isGroup).toBe(true);
+    expect(grpConv?.name).toBe("CS101 Swarm");
+    expect(grpConv?.groupMode).toBe("autobase-swarm");
+    expect(grpConv?.autobaseKey).toBe(autobaseKey);
+    expect(grpConv?.lastMessagePreview).toBe("group hello");
+  });
+
+  it("network store should expose swarm state and persist outgoing group messages", async () => {
+    const networkStore = useNetworkStore();
+    const chatStore = useChatStore();
+
+    expect(networkStore.swarmStatus).toBe("offline");
+    expect(Object.keys(networkStore.swarmPeers)).toHaveLength(0);
+
+    const autobaseKey = "b".repeat(64);
+    const sent = await networkStore.sendGroupMessage(
+      "grp-lab-50",
+      "Physics Lab 50",
+      ["peer1", "peer2"],
+      "Hello Autobase swarm",
+      "local_fp_1",
+      "Tester",
+      autobaseKey,
+    );
+
+    expect(sent.conversationId).toBe("grp-lab-50");
+    expect(sent.content).toBe("Hello Autobase swarm");
+    expect(sent.isOutgoing).toBe(true);
+    expect(sent.deliveryState).toBe(DeliveryState.SENT);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const grpConv = chatStore.conversations.find((c) => c.id === "grp-lab-50");
+    expect(grpConv).toBeDefined();
+    expect(grpConv?.name).toBe("Physics Lab 50");
+    expect(grpConv?.groupMode).toBe("autobase-swarm");
+    expect(grpConv?.autobaseKey).toBe(autobaseKey);
+    expect(grpConv?.lastMessagePreview).toBe("Hello Autobase swarm");
+  });
 });
