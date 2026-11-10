@@ -9,6 +9,8 @@ import {
 import type { StoredMessage } from "@campusmesh/storage";
 import { useChatStore } from "./chat";
 import { useCallStore } from "./call";
+import { useContactsStore } from "./contacts";
+import { useIdentityStore } from "./identity";
 import type { CallSignal } from "@campusmesh/messaging";
 import {
   nativeService,
@@ -68,6 +70,65 @@ export const useNetworkStore = defineStore("network", () => {
     }
   }
 
+  function resolvePeerDisplayName(
+    peerFp: string,
+    payloadName?: string,
+  ): string {
+    const cleanPayload = payloadName?.trim();
+    try {
+      const contactsStore = useContactsStore();
+      const contact = contactsStore.contacts.find(
+        (c) => c.fingerprint === peerFp,
+      );
+      if (contact?.displayName && !contact.displayName.startsWith("Peer ")) {
+        return contact.displayName;
+      }
+    } catch {
+      // Ignore store init order
+    }
+    if (cleanPayload && !cleanPayload.startsWith("Peer ")) {
+      return cleanPayload;
+    }
+    try {
+      const chatStore = useChatStore();
+      const conv = chatStore.conversations.find(
+        (c) => c.peerFingerprint === peerFp,
+      );
+      if (conv?.name && !conv.name.startsWith("Peer ")) {
+        return conv.name;
+      }
+    } catch {
+      // Ignore
+    }
+    return `Peer ${peerFp.slice(0, 8)}`;
+  }
+
+  function handleIncomingCallSignalFrame(senderFp: string, data: unknown) {
+    try {
+      const signal = (
+        typeof data === "string" ? JSON.parse(data) : data
+      ) as CallSignal;
+      if (!signal || !signal.type || !signal.callId) return;
+      const callerName = resolvePeerDisplayName(
+        senderFp,
+        signal.callerDisplayName,
+      );
+      const callStore = useCallStore();
+      void callStore.receiveSignal(signal, callerName);
+      if (signal.type === "call_offer") {
+        void nativeService.hapticFeedback();
+        void nativeService.notifyIncomingCall(
+          callerName,
+          signal.callType,
+          signal.callId,
+          `conv-${senderFp}`,
+        );
+      }
+    } catch (err) {
+      console.warn("Failed processing call signal:", err);
+    }
+  }
+
   function initTransport() {
     if (typeof RTCPeerConnection === "undefined") return;
 
@@ -88,15 +149,22 @@ export const useNetworkStore = defineStore("network", () => {
         if (channel === "cm-control") {
           try {
             const text = new TextDecoder().decode(data);
-            const ack = JSON.parse(text);
-            if (ack.type === "chat_ack" && ack.messageId && ack.deliveryState) {
+            const packet = JSON.parse(text) as Record<string, unknown>;
+            if (
+              packet.type === "chat_ack" &&
+              packet.messageId &&
+              packet.deliveryState
+            ) {
               const chatStore = useChatStore();
-              const convId = (ack.conversationId as string) || `conv-${peerFp}`;
+              const convId =
+                (packet.conversationId as string) || `conv-${peerFp}`;
               chatStore.updateMessageDelivery(
                 convId,
-                ack.messageId as string,
-                ack.deliveryState as DeliveryState,
+                packet.messageId as string,
+                packet.deliveryState as DeliveryState,
               );
+            } else if (packet.type === "call_signal" && packet.signal) {
+              handleIncomingCallSignalFrame(peerFp, packet.signal);
             }
           } catch {
             // Ignore malformed control packet
@@ -108,21 +176,29 @@ export const useNetworkStore = defineStore("network", () => {
             const text = new TextDecoder().decode(data);
             const msg = JSON.parse(text);
             const msgId = msg.id || `m_${Date.now()}`;
+            const senderName = resolvePeerDisplayName(
+              peerFp,
+              msg.senderDisplayName as string | undefined,
+            );
+            const explicitAlias = (msg.senderDisplayName as string) || "";
             const chatStore = useChatStore();
-            chatStore.appendMessage({
-              id: msgId,
-              conversationId: `conv-${peerFp}`,
-              senderFingerprint: peerFp,
-              recipientFingerprint: msg.recipientFingerprint,
-              content: msg.content,
-              contentType: msg.contentType || MessageType.TEXT,
-              timestamp: msg.timestamp || Date.now(),
-              deliveryState: DeliveryState.DELIVERED,
-              isOutgoing: false,
-            });
-            nativeService.hapticFeedback();
-            nativeService.notifyMessage(
-              `CampusMesh (${peerFp.slice(0, 8)})`,
+            void chatStore.appendMessage(
+              {
+                id: msgId,
+                conversationId: `conv-${peerFp}`,
+                senderFingerprint: peerFp,
+                recipientFingerprint: msg.recipientFingerprint,
+                content: msg.content,
+                contentType: msg.contentType || MessageType.TEXT,
+                timestamp: msg.timestamp || Date.now(),
+                deliveryState: DeliveryState.DELIVERED,
+                isOutgoing: false,
+              },
+              explicitAlias || senderName,
+            );
+            void nativeService.hapticFeedback();
+            void nativeService.notifyMessage(
+              senderName,
               msg.content || "Encrypted message",
               `conv-${peerFp}`,
             );
@@ -175,10 +251,11 @@ export const useNetworkStore = defineStore("network", () => {
               ? JSON.parse(data)
               : (data as Record<string, unknown>);
           const senderFp = (msg.senderFingerprint as string) || _senderFp;
-          const senderName = (msg.senderDisplayName as string) || "";
+          const explicitAlias = (msg.senderDisplayName as string) || "";
+          const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
           const msgId = (msg.id as string) || `m_${Date.now()}`;
           const chatStore = useChatStore();
-          chatStore.appendMessage(
+          void chatStore.appendMessage(
             {
               id: msgId,
               conversationId: `conv-${senderFp}`,
@@ -191,11 +268,11 @@ export const useNetworkStore = defineStore("network", () => {
               deliveryState: DeliveryState.DELIVERED,
               isOutgoing: false,
             },
-            senderName,
+            explicitAlias || senderName,
           );
-          nativeService.hapticFeedback();
-          nativeService.notifyMessage(
-            senderName || `CampusMesh (${senderFp.slice(0, 8)})`,
+          void nativeService.hapticFeedback();
+          void nativeService.notifyMessage(
+            senderName,
             (msg.content as string) || "Encrypted message",
             `conv-${senderFp}`,
           );
@@ -241,23 +318,41 @@ export const useNetworkStore = defineStore("network", () => {
             const r = rec as { envelope?: string; senderFingerprint?: string };
             if (!r.envelope) continue;
             const msg = JSON.parse(r.envelope) as Record<string, unknown>;
+            // Skip ephemeral call/control payloads if any accidentally hit mailbox
+            if (
+              typeof msg.type === "string" &&
+              (msg.type.startsWith("call_") ||
+                msg.type === "chat_ack" ||
+                msg.type === "offer" ||
+                msg.type === "answer" ||
+                msg.type === "candidate")
+            ) {
+              continue;
+            }
+            if (!msg.content && !msg.contentType) continue;
             const senderFp =
               (msg.senderFingerprint as string) ||
               r.senderFingerprint ||
               "peer";
+            const explicitAlias = (msg.senderDisplayName as string) || "";
+            const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
             const msgId = (msg.id as string) || `m_${Date.now()}`;
-            chatStore.appendMessage({
-              id: msgId,
-              conversationId: `conv-${senderFp}`,
-              senderFingerprint: senderFp,
-              recipientFingerprint: msg.recipientFingerprint as
-                string | undefined,
-              content: (msg.content as string) || "",
-              contentType: (msg.contentType as MessageType) || MessageType.TEXT,
-              timestamp: (msg.timestamp as number) || Date.now(),
-              deliveryState: DeliveryState.DELIVERED,
-              isOutgoing: false,
-            });
+            void chatStore.appendMessage(
+              {
+                id: msgId,
+                conversationId: `conv-${senderFp}`,
+                senderFingerprint: senderFp,
+                recipientFingerprint: msg.recipientFingerprint as
+                  string | undefined,
+                content: (msg.content as string) || "",
+                contentType:
+                  (msg.contentType as MessageType) || MessageType.TEXT,
+                timestamp: (msg.timestamp as number) || Date.now(),
+                deliveryState: DeliveryState.DELIVERED,
+                isOutgoing: false,
+              },
+              explicitAlias || senderName,
+            );
             sendDeliveryAck(
               senderFp,
               msgId,
@@ -297,29 +392,20 @@ export const useNetworkStore = defineStore("network", () => {
           signalingState.value === SignalingState.CONNECTED
         ) {
           signalingClient.sendCallSignal(signal.recipientFingerprint, signal);
+        } else if (peerTransport) {
+          const bytes = new TextEncoder().encode(
+            JSON.stringify({ type: "call_signal", signal }),
+          );
+          peerTransport.sendData(
+            signal.recipientFingerprint,
+            "cm-control",
+            bytes,
+          );
         }
       });
 
       signalingClient.onCallSignal = (senderFp, data) => {
-        try {
-          const signal = data as CallSignal;
-          const chatStore = useChatStore();
-          const conv = chatStore.conversations.find(
-            (c) => c.peerFingerprint === senderFp,
-          );
-          const callerName = conv?.name || `Peer ${senderFp.slice(0, 8)}`;
-          callStore.receiveSignal(signal, callerName);
-          nativeService.hapticFeedback();
-          if (signal.type === "call_offer") {
-            nativeService.notifyMessage(
-              `Incoming ${signal.callType === "VIDEO" ? "Video" : "Voice"} Call`,
-              `Incoming call from ${callerName}`,
-              `conv-${senderFp}`,
-            );
-          }
-        } catch (err) {
-          console.warn("Failed processing call signal:", err);
-        }
+        handleIncomingCallSignalFrame(senderFp, data);
       };
     }
   }
@@ -339,6 +425,14 @@ export const useNetworkStore = defineStore("network", () => {
     initTransport();
     const callStore = useCallStore();
     callStore.setLocalFingerprint(localFingerprint);
+    try {
+      const identityStore = useIdentityStore();
+      if (identityStore.identity?.displayName) {
+        callStore.setLocalDisplayName(identityStore.identity.displayName);
+      }
+    } catch {
+      // Ignore if store uninitialized
+    }
     activeRoomId.value = roomId;
     if (signalingClient) {
       await signalingClient.connect(roomId, localFingerprint);
@@ -429,6 +523,15 @@ export const useNetworkStore = defineStore("network", () => {
     localFingerprint: string,
     senderDisplayName?: string,
   ): StoredMessage {
+    let resolvedAlias = senderDisplayName?.trim();
+    if (!resolvedAlias) {
+      try {
+        resolvedAlias = useIdentityStore().identity?.displayName?.trim();
+      } catch {
+        // Ignore if identity store uninitialized
+      }
+    }
+
     const messageId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const timestamp = Date.now();
     const targetConvId = conversationId.startsWith("conv-")
@@ -442,7 +545,7 @@ export const useNetworkStore = defineStore("network", () => {
       contentType: MessageType.TEXT,
       timestamp,
       senderFingerprint: localFingerprint,
-      senderDisplayName: senderDisplayName || undefined,
+      senderDisplayName: resolvedAlias || undefined,
       recipientFingerprint,
     };
 
@@ -559,23 +662,28 @@ export const useNetworkStore = defineStore("network", () => {
     try {
       const msg = JSON.parse(rawText) as Record<string, unknown>;
       const senderFp = (msg.senderFingerprint as string) || fallbackSender;
+      const explicitAlias = (msg.senderDisplayName as string) || "";
+      const senderName = resolvePeerDisplayName(senderFp, explicitAlias);
       const msgId = (msg.id as string) || `m_${Date.now()}`;
       const targetConvId = (msg.conversationId as string) || `conv-${senderFp}`;
       const chatStore = useChatStore();
-      chatStore.appendMessage({
-        id: msgId,
-        conversationId: targetConvId,
-        senderFingerprint: senderFp,
-        recipientFingerprint: msg.recipientFingerprint as string | undefined,
-        content: (msg.content as string) || "",
-        contentType: (msg.contentType as MessageType) || MessageType.TEXT,
-        timestamp: (msg.timestamp as number) || Date.now(),
-        deliveryState: DeliveryState.DELIVERED,
-        isOutgoing: false,
-      });
-      nativeService.hapticFeedback();
-      nativeService.notifyMessage(
-        `CampusMesh Air-Gapped (${senderFp.slice(0, 8)})`,
+      void chatStore.appendMessage(
+        {
+          id: msgId,
+          conversationId: targetConvId,
+          senderFingerprint: senderFp,
+          recipientFingerprint: msg.recipientFingerprint as string | undefined,
+          content: (msg.content as string) || "",
+          contentType: (msg.contentType as MessageType) || MessageType.TEXT,
+          timestamp: (msg.timestamp as number) || Date.now(),
+          deliveryState: DeliveryState.DELIVERED,
+          isOutgoing: false,
+        },
+        explicitAlias || senderName,
+      );
+      void nativeService.hapticFeedback();
+      void nativeService.notifyMessage(
+        senderName,
         (msg.content as string) || "Air-Gapped Mesh message",
         targetConvId,
       );

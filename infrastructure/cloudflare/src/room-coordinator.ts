@@ -100,13 +100,21 @@ export class RoomCoordinator {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
-        } else {
+        } else if (
+          msg.type === "chat_message" ||
+          msg.type === "mailbox_deposit"
+        ) {
           await this.depositMailbox(
             msg.senderFingerprint,
             msg.targetFingerprint,
             msg.data,
           );
           return new Response(JSON.stringify({ status: "deposited_mailbox" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else {
+          return new Response(JSON.stringify({ status: "peer_offline" }), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
@@ -401,7 +409,9 @@ export class RoomCoordinator {
       console.warn(`[DO] this.env.ROOM_COORDINATOR is missing!`);
     }
 
-    await this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+    if (msg.type === "chat_message" || msg.type === "mailbox_deposit") {
+      await this.depositMailbox(senderFp, msg.targetFingerprint, msg.data);
+    }
   }
 
   private async deliverPendingMailbox(fingerprint: string, socket: WebSocket) {

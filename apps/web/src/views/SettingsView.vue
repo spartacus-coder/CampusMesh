@@ -339,7 +339,7 @@ async function handleExportBackup() {
             </p>
           </div>
         </div>
-        <Badge variant="outline">v1.0.3</Badge>
+        <Badge variant="outline">v1.0.5</Badge>
       </div>
       <div class="flex items-center justify-between pt-2">
         <span class="text-xs text-textSecondary">

@@ -7,45 +7,19 @@ import { CallState } from "@campusmesh/messaging";
 
 const callStore = useCallStore();
 
-let ringtoneInterval: ReturnType<typeof setInterval> | null = null;
-let audioCtx: AudioContext | null = null;
+let vibrateInterval: ReturnType<typeof setInterval> | null = null;
 
-function playRingtoneChime() {
-  if (typeof window === "undefined") return;
-  try {
-    type AudioCtxConstructor = new () => AudioContext;
-    const AudioContextClass =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext: AudioCtxConstructor })
-        .webkitAudioContext;
-    if (!AudioContextClass) return;
-    if (!audioCtx) audioCtx = new AudioContextClass();
-    if (audioCtx.state === "suspended") {
-      audioCtx.resume().catch(() => {});
+function stopVibrationLoop() {
+  if (vibrateInterval) {
+    clearInterval(vibrateInterval);
+    vibrateInterval = null;
+  }
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      navigator.vibrate(0);
+    } catch {
+      // Ignore
     }
-
-    const osc1 = audioCtx.createOscillator();
-    const osc2 = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    osc1.type = "sine";
-    osc1.frequency.setValueAtTime(440, audioCtx.currentTime);
-    osc2.type = "sine";
-    osc2.frequency.setValueAtTime(480, audioCtx.currentTime);
-
-    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
-
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    osc1.start();
-    osc2.start();
-    osc1.stop(audioCtx.currentTime + 1.2);
-    osc2.stop(audioCtx.currentTime + 1.2);
-  } catch {
-    // Ignore audio policy restrictions
   }
 }
 
@@ -53,31 +27,31 @@ watch(
   () => callStore.callState,
   (st) => {
     if (st === CallState.INCOMING_RINGING) {
-      playRingtoneChime();
-      if (!ringtoneInterval) {
-        ringtoneInterval = setInterval(() => {
-          playRingtoneChime();
-        }, 2500);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate([300, 200, 300]);
+        } catch {
+          // Ignore
+        }
+        if (!vibrateInterval) {
+          vibrateInterval = setInterval(() => {
+            try {
+              navigator.vibrate([300, 200, 300]);
+            } catch {
+              // Ignore
+            }
+          }, 2500);
+        }
       }
     } else {
-      if (ringtoneInterval) {
-        clearInterval(ringtoneInterval);
-        ringtoneInterval = null;
-      }
+      stopVibrationLoop();
     }
   },
   { immediate: true },
 );
 
 onUnmounted(() => {
-  if (ringtoneInterval) {
-    clearInterval(ringtoneInterval);
-    ringtoneInterval = null;
-  }
-  if (audioCtx) {
-    audioCtx.close().catch(() => {});
-    audioCtx = null;
-  }
+  stopVibrationLoop();
 });
 </script>
 

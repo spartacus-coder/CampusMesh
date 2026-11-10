@@ -145,6 +145,9 @@ async function tauriInvoke<T>(
   return null;
 }
 
+let activeCallNotification: Notification | null = null;
+let activeCallNotificationTag: string | null = null;
+
 export const nativeService = {
   get isTauri(): boolean {
     return (
@@ -164,8 +167,7 @@ export const nativeService = {
     return this.isTauri || this.isAndroid;
   },
 
-  async initNativeServices(): Promise<void> {
-    // 1. Request Browser / System Notification Permissions
+  async requestNotificationPermission(): Promise<void> {
     if (typeof window !== "undefined" && "Notification" in window) {
       if (Notification.permission === "default") {
         try {
@@ -175,6 +177,11 @@ export const nativeService = {
         }
       }
     }
+  },
+
+  async initNativeServices(): Promise<void> {
+    // 1. Request Browser / System Notification Permissions
+    await this.requestNotificationPermission();
 
     // 2. If Android Native, start 24/7 Mesh Foreground Service
     if (this.isAndroid) {
@@ -200,7 +207,11 @@ export const nativeService = {
     body: string,
     conversationId?: string,
   ): Promise<void> {
-    if (typeof document !== "undefined" && document.hasFocus()) {
+    if (
+      typeof document !== "undefined" &&
+      !document.hidden &&
+      document.hasFocus()
+    ) {
       return;
     }
 
@@ -231,16 +242,131 @@ export const nativeService = {
       try {
         const notif = new Notification(title, {
           body,
-          icon: "/vite.svg",
+          icon: "/pwa-192x192.png",
           tag: conversationId || "campusmesh_msg",
         });
         notif.onclick = () => {
           window.focus();
+          notif.close();
         };
       } catch (err) {
         console.warn("[CampusMesh Native] Web Notification failed:", err);
       }
     }
+  },
+
+  async alertDesktopIncomingCall(): Promise<void> {
+    if (this.isTauri) {
+      await tauriInvoke("window_alert_incoming_call");
+    }
+  },
+
+  async notifyIncomingCall(
+    callerName: string,
+    callType: "AUDIO" | "VIDEO",
+    callId: string,
+    conversationId?: string,
+  ): Promise<void> {
+    const title = `Incoming ${callType === "VIDEO" ? "Video" : "Voice"} Call`;
+    const body = `${callerName} is calling you on CampusMesh`;
+    const tag = `call_${callId}`;
+    activeCallNotificationTag = tag;
+
+    // Bring desktop window up/flash taskbar if minimized or hidden to tray
+    await this.alertDesktopIncomingCall();
+
+    if (this.isAndroid) {
+      const nativePlugin = getCampusMeshPlugin();
+      if (nativePlugin?.showNotification) {
+        try {
+          await nativePlugin.showNotification({
+            title,
+            body,
+            conversationId: conversationId || "",
+          });
+          return;
+        } catch {
+          // Fall through to web notification
+        }
+      }
+    }
+
+    const isBackground =
+      typeof document !== "undefined" &&
+      (document.hidden || !document.hasFocus());
+    if (!isBackground && !this.isTauri) {
+      return;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      try {
+        if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+          const reg = await navigator.serviceWorker.getRegistration?.();
+          if (reg?.showNotification) {
+            await reg.showNotification(title, {
+              body,
+              icon: "/pwa-192x192.png",
+              tag,
+              requireInteraction: true,
+            });
+            return;
+          }
+        }
+      } catch {
+        // Fallback to direct Notification constructor
+      }
+
+      try {
+        activeCallNotification?.close();
+        const notif = new Notification(title, {
+          body,
+          icon: "/pwa-192x192.png",
+          tag,
+          requireInteraction: true,
+        });
+        notif.onclick = () => {
+          window.focus();
+          notif.close();
+        };
+        activeCallNotification = notif;
+      } catch (err) {
+        console.warn(
+          "[CampusMesh Native] Incoming call Notification failed:",
+          err,
+        );
+      }
+    }
+  },
+
+  async dismissIncomingCallNotification(): Promise<void> {
+    if (activeCallNotification) {
+      try {
+        activeCallNotification.close();
+      } catch {
+        // Ignore
+      }
+      activeCallNotification = null;
+    }
+    if (
+      activeCallNotificationTag &&
+      typeof navigator !== "undefined" &&
+      navigator.serviceWorker
+    ) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration?.();
+        const list = await reg?.getNotifications?.({
+          tag: activeCallNotificationTag,
+        });
+        list?.forEach((n) => n.close());
+      } catch {
+        // Ignore
+      }
+    }
+    activeCallNotificationTag = null;
   },
 
   async hapticFeedback(): Promise<void> {

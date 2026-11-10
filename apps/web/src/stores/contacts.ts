@@ -13,6 +13,7 @@ import {
   type IStoragePort,
 } from "@campusmesh/storage";
 import { nativeService } from "../services/native";
+import { useChatStore } from "./chat";
 
 let storageInstance: IStoragePort | null = null;
 function getStorage(): IStoragePort {
@@ -102,6 +103,15 @@ export const useContactsStore = defineStore("contacts", () => {
       const contact = await contactManager.addContact(input);
       if (nativeService.isTauri) {
         nativeService.saveContactToNativeDb(contact).catch(() => {});
+      }
+      try {
+        useChatStore().updatePeerDisplayName(
+          contact.fingerprint,
+          contact.displayName,
+          true,
+        );
+      } catch {
+        // Ignore if chat store not yet active
       }
       await loadContacts();
       return contact;

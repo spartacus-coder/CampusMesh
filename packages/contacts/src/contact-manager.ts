@@ -99,9 +99,15 @@ export class ContactManager {
           undefined;
 
         if (fp && fp.length >= 8) {
+          let decodedName = name;
+          try {
+            decodedName = decodeURIComponent(name);
+          } catch {
+            decodedName = name;
+          }
           return {
             fingerprint: fp,
-            displayName: decodeURIComponent(name),
+            displayName: decodedName,
             ...(ed ? { ed25519PublicKey: ed } : {}),
             ...(x ? { x25519PublicKey: x } : {}),
           };

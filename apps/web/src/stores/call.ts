@@ -6,8 +6,18 @@ import {
   type CallType,
   type CallSignal,
 } from "@campusmesh/messaging";
+import {
+  initCallAudioUnlock,
+  startIncomingRingtone,
+  startOutgoingRingtone,
+  stopAllRingtones,
+  startTitleFlash,
+} from "../services/ringtone";
+import { nativeService } from "../services/native";
 
 export const useCallStore = defineStore("call", () => {
+  initCallAudioUnlock();
+
   const callState = ref<CallState>(CallState.IDLE);
   const callType = ref<CallType>("AUDIO");
   const peerFingerprint = ref<string | null>(null);
@@ -15,13 +25,15 @@ export const useCallStore = defineStore("call", () => {
   const durationSeconds = ref(0);
   const isAudioMuted = ref(false);
   const isVideoMuted = ref(false);
+  const mediaError = ref<string | null>(null);
+  const connectionStatus = ref<string>("connecting");
 
   const localStream = ref<MediaStream | null>(null);
   const remoteStream = ref<MediaStream | null>(null);
 
   let timerInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Real WebRTC signal dispatcher via signalingClient
+  // Real WebRTC signal dispatcher via signalingClient / P2P DataChannel
   let signalDispatcher: ((signal: CallSignal) => void) | null = null;
 
   const sessionManager = new CallSessionManager({
@@ -35,9 +47,24 @@ export const useCallStore = defineStore("call", () => {
     onRemoteStream: (stream) => {
       remoteStream.value = stream;
     },
+    onMediaError: (err) => {
+      mediaError.value = err;
+    },
+    onConnectionStateChange: (status) => {
+      connectionStatus.value = status;
+    },
     onStateChanged: (st) => {
       callState.value = st;
-      if (st === CallState.CONNECTED) {
+      if (st === CallState.INCOMING_RINGING) {
+        startIncomingRingtone();
+        startTitleFlash(
+          `📞 Incoming ${callType.value === "VIDEO" ? "Video" : "Voice"} Call — ${peerName.value}`,
+        );
+      } else if (st === CallState.OUTGOING_RINGING) {
+        startOutgoingRingtone();
+      } else if (st === CallState.CONNECTED) {
+        stopAllRingtones();
+        void nativeService.dismissIncomingCallNotification();
         startTimer();
       } else if (
         st === CallState.ENDED ||
@@ -45,9 +72,13 @@ export const useCallStore = defineStore("call", () => {
         st === CallState.BUSY ||
         st === CallState.IDLE
       ) {
+        stopAllRingtones();
+        void nativeService.dismissIncomingCallNotification();
         stopTimer();
         localStream.value = null;
         remoteStream.value = null;
+        mediaError.value = null;
+        connectionStatus.value = "connecting";
       }
     },
   });
@@ -56,6 +87,10 @@ export const useCallStore = defineStore("call", () => {
     (
       sessionManager as unknown as { localFingerprint: string }
     ).localFingerprint = fp;
+  }
+
+  function setLocalDisplayName(name: string) {
+    sessionManager.setLocalDisplayName(name);
   }
 
   function setSignalDispatcher(fn: (signal: CallSignal) => void) {
@@ -82,18 +117,24 @@ export const useCallStore = defineStore("call", () => {
     name: string,
     type: CallType = "AUDIO",
   ): Promise<string> {
+    void nativeService.requestNotificationPermission();
     peerFingerprint.value = recipientFingerprint;
     peerName.value = name;
     callType.value = type;
     isAudioMuted.value = false;
     isVideoMuted.value = false;
+    mediaError.value = null;
+    connectionStatus.value = "connecting";
 
     return sessionManager.initiateCall(recipientFingerprint, type);
   }
 
   async function acceptCall(): Promise<void> {
+    void nativeService.requestNotificationPermission();
     const callId = sessionManager.getActiveCallId();
     if (callId) {
+      mediaError.value = null;
+      connectionStatus.value = "connecting";
       await sessionManager.acceptCall(callId);
     }
   }
@@ -103,19 +144,25 @@ export const useCallStore = defineStore("call", () => {
     if (callId) {
       sessionManager.rejectCall(callId);
     }
+    stopAllRingtones();
+    void nativeService.dismissIncomingCallNotification();
     callState.value = CallState.IDLE;
     peerFingerprint.value = null;
     localStream.value = null;
     remoteStream.value = null;
+    mediaError.value = null;
     stopTimer();
   }
 
   function endCall(): void {
     sessionManager.endCall();
+    stopAllRingtones();
+    void nativeService.dismissIncomingCallNotification();
     callState.value = CallState.IDLE;
     peerFingerprint.value = null;
     localStream.value = null;
     remoteStream.value = null;
+    mediaError.value = null;
     stopTimer();
   }
 
@@ -136,7 +183,7 @@ export const useCallStore = defineStore("call", () => {
     callerName = "Peer",
   ): Promise<void> {
     if (signal.type === "call_offer") {
-      peerName.value = callerName;
+      peerName.value = signal.callerDisplayName || callerName;
       peerFingerprint.value = signal.callerFingerprint;
       callType.value = signal.callType;
     }
@@ -167,10 +214,13 @@ export const useCallStore = defineStore("call", () => {
     formattedDuration,
     isAudioMuted,
     isVideoMuted,
+    mediaError,
+    connectionStatus,
     localStream,
     remoteStream,
     isCallActive,
     setLocalFingerprint,
+    setLocalDisplayName,
     setSignalDispatcher,
     startCall,
     acceptCall,

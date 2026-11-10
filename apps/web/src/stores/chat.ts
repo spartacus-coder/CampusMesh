@@ -223,6 +223,26 @@ export const useChatStore = defineStore("chat", () => {
       }
     }
 
+    // Reconcile any placeholder Peer <hash> conversation names with saved Contact aliases
+    try {
+      const savedContacts = await getStorage().getContacts();
+      if (savedContacts && savedContacts.length > 0) {
+        const contactByFp = new Map(
+          savedContacts.map((c) => [c.fingerprint, c.displayName]),
+        );
+        for (const conv of loadedMap.values()) {
+          if (conv.peerFingerprint && isPlaceholderPeerName(conv.name)) {
+            const alias = contactByFp.get(conv.peerFingerprint);
+            if (alias && alias.trim()) {
+              conv.name = alias.trim();
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore if contacts store uninitialized
+    }
+
     conversations.value = Array.from(loadedMap.values()).sort(
       (a, b) => (b.lastMessageTimestamp || 0) - (a.lastMessageTimestamp || 0),
     );
@@ -241,6 +261,43 @@ export const useChatStore = defineStore("chat", () => {
     }
   }
 
+  function isPlaceholderPeerName(name: string | undefined): boolean {
+    if (!name) return true;
+    const trimmed = name.trim();
+    return (
+      !trimmed ||
+      trimmed.startsWith("Peer ") ||
+      trimmed === "Peer" ||
+      trimmed === "Contact" ||
+      trimmed === "Unknown Peer" ||
+      trimmed === "CampusMesh User" ||
+      /^[a-f0-9]{12,}$/i.test(trimmed)
+    );
+  }
+
+  function updatePeerDisplayName(
+    peerFingerprint: string,
+    displayName: string,
+    force = false,
+  ): void {
+    const clean = displayName.trim();
+    if (!clean || isPlaceholderPeerName(clean)) return;
+    const conv = conversations.value.find(
+      (c) =>
+        c.peerFingerprint === peerFingerprint ||
+        c.id === `conv-${peerFingerprint}`,
+    );
+    if (conv && (force || isPlaceholderPeerName(conv.name))) {
+      conv.name = clean;
+      if (nativeService.isTauri) {
+        nativeService.saveConversationToNativeDb(conv).catch(() => {});
+      }
+      getStorage()
+        .saveConversation(conv)
+        .catch(() => {});
+    }
+  }
+
   async function appendMessage(
     msg: StoredMessage,
     senderDisplayName?: string,
@@ -248,6 +305,7 @@ export const useChatStore = defineStore("chat", () => {
     const peerFp = !msg.isOutgoing
       ? msg.senderFingerprint
       : msg.recipientFingerprint;
+    const cleanSenderName = senderDisplayName?.trim();
 
     // Find existing conversation by ID or matching peer fingerprint
     let conv = conversations.value.find(
@@ -262,7 +320,7 @@ export const useChatStore = defineStore("chat", () => {
         id: canonicalId,
         isGroup: false,
         name:
-          senderDisplayName ||
+          cleanSenderName ||
           (!msg.isOutgoing ? `Peer ${peerFp.slice(0, 8)}` : "Contact"),
         peerFingerprint: peerFp,
         lastMessagePreview: msg.content,
@@ -272,6 +330,14 @@ export const useChatStore = defineStore("chat", () => {
         isArchived: false,
       };
       conversations.value.unshift(conv);
+    } else if (
+      conv &&
+      cleanSenderName &&
+      !isPlaceholderPeerName(cleanSenderName) &&
+      isPlaceholderPeerName(conv.name)
+    ) {
+      // Replace temporary Peer <hash> placeholder once real sender alias arrives
+      conv.name = cleanSenderName;
     }
 
     // Always ensure message is filed under the true canonical conversation ID
@@ -361,6 +427,7 @@ export const useChatStore = defineStore("chat", () => {
     initConversations,
     appendMessage,
     updateMessageDelivery,
+    updatePeerDisplayName,
     saveConversation,
   };
 });

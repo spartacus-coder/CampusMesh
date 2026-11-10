@@ -68,6 +68,12 @@ async function startChatWithContact(contact: Contact) {
       lastMessageTimestamp: Date.now(),
     };
     await chatStore.saveConversation(conv);
+  } else if (conv.name !== contact.displayName) {
+    chatStore.updatePeerDisplayName(
+      contact.fingerprint,
+      contact.displayName,
+      true,
+    );
   }
   await chatStore.selectConversation(conv.id);
   router.push("/");

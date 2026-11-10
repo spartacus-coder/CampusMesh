@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import {
   PhoneOff,
   Mic,
@@ -7,6 +7,8 @@ import {
   Video,
   VideoOff,
   ShieldCheck,
+  Volume2,
+  AlertCircle,
 } from "lucide-vue-next";
 import { Avatar, Button, Badge } from "@campusmesh/ui";
 import { useCallStore } from "../stores/call";
@@ -17,17 +19,64 @@ const callStore = useCallStore();
 const remoteVideoRef = ref<HTMLVideoElement | null>(null);
 const localVideoRef = ref<HTMLVideoElement | null>(null);
 const remoteAudioRef = ref<HTMLAudioElement | null>(null);
+const audioPlaybackBlocked = ref(false);
+
+const hasRemoteVideo = computed(() => {
+  const stream = callStore.remoteStream;
+  if (!stream) return false;
+  return stream.getVideoTracks().some((t) => t.readyState === "live");
+});
+
+const statusLabel = computed(() => {
+  if (callStore.callState === CallState.OUTGOING_RINGING) {
+    return "Ringing peer...";
+  }
+  if (callStore.connectionStatus === "connecting") {
+    return `Connecting audio... (${callStore.formattedDuration})`;
+  }
+  if (callStore.connectionStatus === "disconnected") {
+    return `Reconnecting... (${callStore.formattedDuration})`;
+  }
+  return callStore.formattedDuration;
+});
+
+function enableAudioPlayback() {
+  if (!remoteAudioRef.value) return;
+  remoteAudioRef.value
+    .play()
+    .then(() => {
+      audioPlaybackBlocked.value = false;
+    })
+    .catch(() => {
+      audioPlaybackBlocked.value = true;
+    });
+}
 
 watch(
   [() => callStore.remoteStream, remoteVideoRef, remoteAudioRef],
   ([stream]) => {
-    if (remoteVideoRef.value && stream) {
-      remoteVideoRef.value.srcObject = stream;
-      remoteVideoRef.value.play().catch(() => {});
+    if (remoteVideoRef.value) {
+      remoteVideoRef.value.srcObject = stream || null;
+      if (stream) {
+        remoteVideoRef.value.play().catch(() => {});
+      }
     }
-    if (remoteAudioRef.value && stream) {
-      remoteAudioRef.value.srcObject = stream;
-      remoteAudioRef.value.play().catch(() => {});
+    if (remoteAudioRef.value) {
+      remoteAudioRef.value.srcObject = stream || null;
+      if (stream) {
+        remoteAudioRef.value.muted = false;
+        remoteAudioRef.value
+          .play()
+          .then(() => {
+            audioPlaybackBlocked.value = false;
+          })
+          .catch((err) => {
+            console.warn("[ActiveCallModal] Audio autoplay blocked:", err);
+            audioPlaybackBlocked.value = true;
+          });
+      } else {
+        audioPlaybackBlocked.value = false;
+      }
     }
   },
   { immediate: true },
@@ -36,9 +85,11 @@ watch(
 watch(
   [() => callStore.localStream, localVideoRef],
   ([stream]) => {
-    if (localVideoRef.value && stream) {
-      localVideoRef.value.srcObject = stream;
-      localVideoRef.value.play().catch(() => {});
+    if (localVideoRef.value) {
+      localVideoRef.value.srcObject = stream || null;
+      if (stream) {
+        localVideoRef.value.play().catch(() => {});
+      }
     }
   },
   { immediate: true },
@@ -56,8 +107,13 @@ onUnmounted(() => {
     v-if="callStore.isCallActive"
     class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
   >
-    <!-- Hidden audio element for remote stream audio playback -->
-    <audio ref="remoteAudioRef" autoplay playsinline class="hidden"></audio>
+    <!-- Off-screen audio element (not display:none so WebViews keep audio decoder active) -->
+    <audio
+      ref="remoteAudioRef"
+      autoplay
+      playsinline
+      class="w-0 h-0 opacity-0 pointer-events-none absolute"
+    ></audio>
 
     <div
       class="bg-surface border border-border rounded-3xl w-full shadow-2xl flex flex-col items-center text-textPrimary relative overflow-hidden transition-all duration-300"
@@ -78,12 +134,32 @@ onUnmounted(() => {
         <span
           class="font-mono text-xs text-textMuted bg-surface-subtle/80 px-2.5 py-0.5 rounded-full border border-borderSubtle"
         >
-          {{
-            callStore.callState === CallState.OUTGOING_RINGING
-              ? "Ringing peer..."
-              : callStore.formattedDuration
-          }}
+          {{ statusLabel }}
         </span>
+      </div>
+
+      <!-- Optional Audio Autoplay Recovery / Media Warning -->
+      <div
+        v-if="audioPlaybackBlocked"
+        class="w-full flex items-center justify-center z-20 shrink-0"
+      >
+        <Button
+          variant="default"
+          size="sm"
+          class="gap-2 bg-amber-600 hover:bg-amber-700 text-white shadow-md"
+          @click="enableAudioPlayback"
+        >
+          <Volume2 class="h-4 w-4" />
+          Tap to Enable Call Speaker
+        </Button>
+      </div>
+
+      <div
+        v-if="callStore.mediaError"
+        class="w-full flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-500 z-20 shrink-0"
+      >
+        <AlertCircle class="h-4 w-4 shrink-0" />
+        <span>{{ callStore.mediaError }}</span>
       </div>
 
       <!-- VIDEO CALL DISPLAY -->
@@ -91,18 +167,19 @@ onUnmounted(() => {
         v-if="callStore.callType === 'VIDEO'"
         class="relative w-full flex-1 min-h-0 my-3 rounded-2xl overflow-hidden bg-black flex items-center justify-center border border-borderSubtle"
       >
-        <!-- Remote Video Stream -->
+        <!-- Remote Video Stream (muted here because remoteAudioRef plays remote audio cleanly) -->
         <video
-          v-show="callStore.remoteStream"
+          v-show="hasRemoteVideo"
           ref="remoteVideoRef"
           autoplay
           playsinline
+          muted
           class="w-full h-full object-cover"
         ></video>
 
         <!-- Fallback if remote video hasn't arrived yet -->
         <div
-          v-show="!callStore.remoteStream"
+          v-show="!hasRemoteVideo"
           class="flex flex-col items-center justify-center gap-3"
         >
           <div class="relative">

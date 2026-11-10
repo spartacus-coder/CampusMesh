@@ -255,19 +255,20 @@ describe("Web Stores Suite", () => {
     expect(callStore.callState).toBe(CallState.IDLE);
     expect(callStore.isCallActive).toBe(false);
 
-    // Incoming call offer
-    callStore.receiveSignal(
+    // Incoming call offer with callerDisplayName in signal
+    await callStore.receiveSignal(
       {
         type: "call_offer",
         callId: "call-inc-1",
         callType: "AUDIO",
         callerFingerprint: "fp-alice",
         recipientFingerprint: "me",
+        callerDisplayName: "Alice Display",
       },
-      "Alice",
+      "Peer fp-alice",
     );
     expect(callStore.callState).toBe(CallState.INCOMING_RINGING);
-    expect(callStore.peerName).toBe("Alice");
+    expect(callStore.peerName).toBe("Alice Display");
 
     // Accept incoming call
     await callStore.acceptCall();
@@ -276,5 +277,46 @@ describe("Web Stores Suite", () => {
 
     callStore.endCall();
     expect(callStore.callState).toBe(CallState.IDLE);
+  });
+
+  it("chat store should replace Peer hash placeholder with sender alias when received or contact added", async () => {
+    const chatStore = useChatStore();
+    chatStore.setStorageAdapter(new InMemoryStorageAdapter());
+
+    await chatStore.appendMessage({
+      id: "m_hash_1",
+      conversationId: "conv-abc12345def67890",
+      senderFingerprint: "abc12345def67890",
+      content: "hi",
+      contentType: MessageType.TEXT,
+      timestamp: Date.now(),
+      deliveryState: DeliveryState.DELIVERED,
+      isOutgoing: false,
+    });
+
+    const conv = chatStore.conversations.find(
+      (c) => c.peerFingerprint === "abc12345def67890",
+    );
+    expect(conv?.name).toBe("Peer abc12345");
+
+    // Next message arrives with real senderDisplayName
+    await chatStore.appendMessage(
+      {
+        id: "m_hash_2",
+        conversationId: "conv-abc12345def67890",
+        senderFingerprint: "abc12345def67890",
+        content: "hi again",
+        contentType: MessageType.TEXT,
+        timestamp: Date.now() + 100,
+        deliveryState: DeliveryState.DELIVERED,
+        isOutgoing: false,
+      },
+      "Rahul",
+    );
+    expect(conv?.name).toBe("Rahul");
+
+    // Explicit contact alias overrides even non-placeholder name
+    chatStore.updatePeerDisplayName("abc12345def67890", "Rahul (Dorm 2)", true);
+    expect(conv?.name).toBe("Rahul (Dorm 2)");
   });
 });

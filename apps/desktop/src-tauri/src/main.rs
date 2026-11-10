@@ -81,6 +81,17 @@ fn simplex_derive_safety_number(pubkey_a: String, pubkey_b: String) -> String {
     SimpleXQueue::derive_safety_number(&pubkey_a, &pubkey_b)
 }
 
+#[tauri::command]
+fn window_alert_incoming_call(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.request_user_attention(Some(tauri::UserAttentionType::Critical));
+    }
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -160,7 +171,8 @@ fn main() {
             lan_broadcast_beacon,
             lan_stop_discovery,
             simplex_derive_queue_id,
-            simplex_derive_safety_number
+            simplex_derive_safety_number,
+            window_alert_incoming_call
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

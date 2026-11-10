@@ -62,6 +62,21 @@ const isPeerInContacts = computed(() => {
   );
 });
 
+const activePeerSafetyNumber = computed(() => {
+  const peerFp = activeConversation.value?.peerFingerprint;
+  if (!peerFp) return "Group Channel (Shared Epoch Key)";
+  const contact = contactsStore.contacts.find((c) => c.fingerprint === peerFp);
+  if (contact?.safetyNumber) return contact.safetyNumber;
+  return peerFp.match(/.{1,4}/g)?.join(" ") ?? peerFp;
+});
+
+const isActivePeerVerified = computed(() => {
+  const peerFp = activeConversation.value?.peerFingerprint;
+  if (!peerFp) return true;
+  const contact = contactsStore.contacts.find((c) => c.fingerprint === peerFp);
+  return Boolean(contact?.isVerified);
+});
+
 function handleAddPeerToContacts() {
   if (!activeConversation.value?.peerFingerprint) return;
   contactsStore.openAddContactWithPeer(
@@ -231,22 +246,42 @@ async function handleFileSelected(event: Event) {
   }
 }
 
-function handleStartVoiceCall() {
+async function handleStartVoiceCall() {
   if (!activeConversation.value?.peerFingerprint) return;
-  callStore.startCall(
-    activeConversation.value.peerFingerprint,
-    activeConversation.value.name,
-    "AUDIO",
-  );
+  if (identityStore.identity?.fingerprint) {
+    callStore.setLocalFingerprint(identityStore.identity.fingerprint);
+  }
+  if (identityStore.identity?.displayName) {
+    callStore.setLocalDisplayName(identityStore.identity.displayName);
+  }
+  try {
+    await callStore.startCall(
+      activeConversation.value.peerFingerprint,
+      activeConversation.value.name,
+      "AUDIO",
+    );
+  } catch (err) {
+    console.warn("Unable to start voice call:", err);
+  }
 }
 
-function handleStartVideoCall() {
+async function handleStartVideoCall() {
   if (!activeConversation.value?.peerFingerprint) return;
-  callStore.startCall(
-    activeConversation.value.peerFingerprint,
-    activeConversation.value.name,
-    "VIDEO",
-  );
+  if (identityStore.identity?.fingerprint) {
+    callStore.setLocalFingerprint(identityStore.identity.fingerprint);
+  }
+  if (identityStore.identity?.displayName) {
+    callStore.setLocalDisplayName(identityStore.identity.displayName);
+  }
+  try {
+    await callStore.startCall(
+      activeConversation.value.peerFingerprint,
+      activeConversation.value.name,
+      "VIDEO",
+    );
+  } catch (err) {
+    console.warn("Unable to start video call:", err);
+  }
 }
 </script>
 
@@ -722,11 +757,18 @@ function handleStartVideoCall() {
           <p
             class="font-mono text-xs text-primary font-semibold tracking-wider break-all"
           >
-            4920 1849 2049 8291 9301 8492
+            {{ activePeerSafetyNumber }}
           </p>
         </div>
-        <Badge variant="success" class="w-full justify-center py-1">
-          ✓ Verified Identity Key
+        <Badge
+          :variant="isActivePeerVerified ? 'success' : 'secondary'"
+          class="w-full justify-center py-1"
+        >
+          {{
+            isActivePeerVerified
+              ? "✓ Verified Identity Key"
+              : "Unverified Peer Key"
+          }}
         </Badge>
       </div>
 
