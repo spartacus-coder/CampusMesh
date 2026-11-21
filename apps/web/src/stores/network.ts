@@ -533,6 +533,33 @@ export const useNetworkStore = defineStore("network", () => {
             } else if (packet.type === "dtn_ack" && packet.ack) {
               const router = getDtnRouter();
               void router.handleAck(packet.ack as DtnAck);
+            } else if (packet.type === "history_sync_request") {
+              const convId =
+                (packet.conversationId as string) || `conv-${peerFp}`;
+              const since = (packet.sinceTimestamp as number) || 0;
+              void getStorage()
+                .getMessages(convId, 300)
+                .then((all) => {
+                  const toSend = all.filter((m) => m.timestamp >= since);
+                  if (toSend.length > 0) {
+                    sendControlToPeer(peerFp, {
+                      type: "history_sync_batch",
+                      conversationId: convId,
+                      messages: toSend,
+                    });
+                  }
+                });
+            } else if (
+              packet.type === "history_sync_batch" &&
+              Array.isArray(packet.messages)
+            ) {
+              const chatStore = useChatStore();
+              const convId =
+                (packet.conversationId as string) || `conv-${peerFp}`;
+              void chatStore.mergeHistoryBatch(
+                convId,
+                packet.messages as StoredMessage[],
+              );
             }
           } catch {
             // Ignore malformed control packet
@@ -1407,6 +1434,21 @@ export const useNetworkStore = defineStore("network", () => {
     }
   }
 
+  async function requestHistorySync(
+    peerFingerprint: string,
+    conversationId: string,
+  ): Promise<boolean> {
+    const chatStore = useChatStore();
+    const msgs = chatStore.messagesMap[conversationId] || [];
+    const sinceTimestamp =
+      msgs.length > 0 ? msgs[msgs.length - 1]!.timestamp : 0;
+    return sendControlToPeer(peerFingerprint, {
+      type: "history_sync_request",
+      conversationId,
+      sinceTimestamp,
+    });
+  }
+
   return {
     isOnline,
     signalingState,
@@ -1451,5 +1493,6 @@ export const useNetworkStore = defineStore("network", () => {
     sendReadReceipt,
     getDtnRouter,
     syncDtnWithPeer,
+    requestHistorySync,
   };
 });

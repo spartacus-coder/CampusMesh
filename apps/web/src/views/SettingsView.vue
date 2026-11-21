@@ -19,13 +19,42 @@ import {
   RefreshCw,
   ExternalLink,
   Network,
+  Radio,
 } from "lucide-vue-next";
 import { Button, Badge } from "@campusmesh/ui";
 import IdentityCardModal from "../components/IdentityCardModal.vue";
+import { LoRaSerialAdapter } from "@campusmesh/transport";
 
 const themeStore = useThemeStore();
 const identityStore = useIdentityStore();
 const networkStore = useNetworkStore();
+
+const loraAdapter = new LoRaSerialAdapter();
+const isWebSerialSupported = loraAdapter.isSupported;
+const loraStatus = ref(loraAdapter.connectionStatus);
+const loraBand = ref<"868MHz" | "915MHz">("868MHz");
+const loraRxCount = ref(0);
+const loraTxCount = ref(0);
+const loraError = ref<string | null>(null);
+
+loraAdapter.onStatusChange((status, err) => {
+  loraStatus.value = status;
+  loraError.value = err || null;
+});
+
+loraAdapter.onPacket(() => {
+  loraRxCount.value++;
+});
+
+async function toggleLoRaConnection() {
+  loraError.value = null;
+  if (loraStatus.value === "connected") {
+    await loraAdapter.disconnect();
+  } else {
+    loraAdapter.setFrequencyBand(loraBand.value);
+    await loraAdapter.connect();
+  }
+}
 
 const swarmPeerCount = computed(
   () => Object.keys(networkStore.swarmPeers).length,
@@ -378,6 +407,111 @@ async function handleExportBackup() {
         <p v-if="networkStore.swarmError" class="text-amber-500">
           {{ networkStore.swarmError }}
         </p>
+      </div>
+    </section>
+
+    <!-- Tier 3 Hardware Radio Bridge (LoRa & Meshtastic WebSerial) Card -->
+    <section class="rounded-xl border border-border bg-surface p-5 space-y-4">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3">
+          <Radio class="h-5 w-5 text-primary" />
+          <div>
+            <h2 class="text-sm font-semibold text-textPrimary">
+              Hardware LoRa Radio Bridge (Meshtastic)
+            </h2>
+            <p class="text-xs text-textSecondary">
+              Long-range (5–15 km) zero-infrastructure physical packets over ISM
+              radio via WebSerial USB.
+            </p>
+          </div>
+        </div>
+        <Badge
+          :variant="
+            loraStatus === 'connected'
+              ? 'success'
+              : loraStatus === 'error'
+                ? 'destructive'
+                : 'outline'
+          "
+        >
+          {{
+            !isWebSerialSupported
+              ? "WebSerial Unavailable"
+              : loraStatus === "connected"
+                ? `LoRa Connected (${loraBand})`
+                : loraStatus === "connecting"
+                  ? "Connecting..."
+                  : "Disconnected"
+          }}
+        </Badge>
+      </div>
+
+      <div
+        class="rounded-lg bg-surface-subtle p-3 text-xs text-textSecondary space-y-2 border border-borderSubtle"
+      >
+        <div class="flex items-center justify-between">
+          <span class="text-textPrimary font-medium">Frequency Band:</span>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="px-2.5 py-1 text-xs rounded-md border transition-all"
+              :class="
+                loraBand === '868MHz'
+                  ? 'bg-primary/10 border-primary text-primary font-bold'
+                  : 'border-border text-textMuted hover:text-textPrimary'
+              "
+              :disabled="loraStatus === 'connected'"
+              @click="loraBand = '868MHz'"
+            >
+              868 MHz (India / EU)
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 text-xs rounded-md border transition-all"
+              :class="
+                loraBand === '915MHz'
+                  ? 'bg-primary/10 border-primary text-primary font-bold'
+                  : 'border-border text-textMuted hover:text-textPrimary'
+              "
+              :disabled="loraStatus === 'connected'"
+              @click="loraBand = '915MHz'"
+            >
+              915 MHz (US / Americas)
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <span>Packets Transmitted / Received:</span>
+          <span class="font-mono text-textPrimary font-medium">
+            TX: {{ loraTxCount }} | RX: {{ loraRxCount }}
+          </span>
+        </div>
+
+        <p v-if="loraError" class="text-xs text-destructive">
+          {{ loraError }}
+        </p>
+      </div>
+
+      <div class="flex items-center justify-between pt-1">
+        <p class="text-[11px] text-textMuted max-w-sm">
+          Plug in your SX1262 Heltec V3, T-Beam, or RAK LoRa module via USB-C to
+          relay encrypted packets without cellular or Wi-Fi.
+        </p>
+
+        <Button
+          v-if="isWebSerialSupported"
+          size="sm"
+          :variant="loraStatus === 'connected' ? 'destructive' : 'default'"
+          @click="toggleLoRaConnection"
+        >
+          <Radio class="h-3.5 w-3.5 mr-1.5" />
+          {{
+            loraStatus === "connected"
+              ? "Disconnect Radio"
+              : "Connect USB LoRa Radio"
+          }}
+        </Button>
       </div>
     </section>
 

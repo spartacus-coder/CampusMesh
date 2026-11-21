@@ -27,6 +27,29 @@ watch(
   () => callStore.callState,
   (st) => {
     if (st === CallState.INCOMING_RINGING) {
+      if (
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          const notif = new Notification(
+            `Incoming Call — ${callStore.peerName}`,
+            {
+              body: `Incoming ${callStore.callType === "VIDEO" ? "Video" : "Voice"} call on CampusMesh. Click to answer.`,
+              icon: "/favicon.ico",
+              tag: "campusmesh-incoming-call",
+              requireInteraction: true,
+            },
+          );
+          notif.onclick = () => {
+            window.focus();
+            notif.close();
+          };
+        } catch {
+          // Ignore
+        }
+      }
+
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         try {
           navigator.vibrate([300, 200, 300]);

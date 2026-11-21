@@ -96,6 +96,13 @@ export class InMemoryStorageAdapter implements IStoragePort {
     this.messages.set(message.id, message);
   }
 
+  async saveMessages(messages: StoredMessage[]): Promise<number> {
+    for (const m of messages) {
+      this.messages.set(m.id, m);
+    }
+    return messages.length;
+  }
+
   async getMessages(
     conversationId: string,
     limit = 50,

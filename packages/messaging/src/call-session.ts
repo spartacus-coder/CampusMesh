@@ -260,13 +260,53 @@ export class CallSessionManager {
 
   private attachLocalTracksToPeer(pc: RTCPeerConnection): void {
     if (!this.localStream) return;
-    const existingSenders = pc.getSenders ? pc.getSenders() : [];
+    const transceivers = pc.getTransceivers ? pc.getTransceivers() : [];
+    const senders = pc.getSenders ? pc.getSenders() : [];
+
     for (const track of this.localStream.getTracks()) {
-      if (existingSenders.some((s) => s.track?.id === track.id)) continue;
-      try {
-        pc.addTrack(track, this.localStream);
-      } catch {
-        // Ignore duplicate track addition
+      // 1. Check if a matching transceiver exists for this media kind
+      const matching = transceivers.find(
+        (t) =>
+          t.receiver.track.kind === track.kind ||
+          t.sender.track?.kind === track.kind,
+      );
+
+      if (matching) {
+        // Guarantee bidirectional sendrecv so caller and callee hear each other
+        if (matching.direction !== "sendrecv") {
+          matching.direction = "sendrecv";
+        }
+        if (matching.sender.track?.id !== track.id) {
+          try {
+            void matching.sender.replaceTrack(track);
+          } catch {
+            try {
+              pc.addTrack(track, this.localStream);
+            } catch {
+              // Ignore duplicate
+            }
+          }
+        }
+      } else {
+        const existingSender = senders.find((s) => s.track?.id === track.id);
+        if (!existingSender) {
+          try {
+            if (pc.addTransceiver) {
+              pc.addTransceiver(track, {
+                direction: "sendrecv",
+                streams: [this.localStream],
+              });
+            } else {
+              pc.addTrack(track, this.localStream);
+            }
+          } catch {
+            try {
+              pc.addTrack(track, this.localStream);
+            } catch {
+              // Ignore
+            }
+          }
+        }
       }
     }
   }
@@ -397,6 +437,13 @@ export class CallSessionManager {
 
         // Attach local tracks after setting remote description for Unified Plan mid alignment
         this.attachLocalTracksToPeer(pc);
+
+        // Ensure all transceivers in the answer are set to sendrecv so audio/video flow bidirectionally
+        for (const tr of pc.getTransceivers ? pc.getTransceivers() : []) {
+          if (tr.direction !== "sendrecv") {
+            tr.direction = "sendrecv";
+          }
+        }
 
         // Flush any queued ICE candidates that arrived before remote description
         while (this.pendingIceCandidates.length > 0) {

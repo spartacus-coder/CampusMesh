@@ -5,6 +5,7 @@
 
 export * from "./base45";
 export * from "./acoustic-modem";
+export * from "./lora-serial-adapter";
 export * from "./manual-signaling";
 export * from "./signaling-client";
 export * from "./swarm-adapter";

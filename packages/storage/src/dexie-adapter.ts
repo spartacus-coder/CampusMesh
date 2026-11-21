@@ -30,6 +30,7 @@ export interface IStoragePort {
   getConversations(): Promise<Conversation[]>;
   getConversation(id: string): Promise<Conversation | null>;
   saveMessage(message: StoredMessage): Promise<void>;
+  saveMessages(messages: StoredMessage[]): Promise<number>;
   getMessages(
     conversationId: string,
     limit?: number,
@@ -135,6 +136,12 @@ export class DexieStorageAdapter implements IStoragePort {
 
   async saveMessage(message: StoredMessage): Promise<void> {
     await this.db.messages.put(message);
+  }
+
+  async saveMessages(messages: StoredMessage[]): Promise<number> {
+    if (!messages.length) return 0;
+    await this.db.messages.bulkPut(messages);
+    return messages.length;
   }
 
   async getMessages(

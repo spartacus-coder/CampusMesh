@@ -445,6 +445,51 @@ export const useChatStore = defineStore("chat", () => {
       .catch(() => {});
   }
 
+  async function mergeHistoryBatch(
+    conversationId: string,
+    incoming: StoredMessage[],
+  ): Promise<number> {
+    if (!incoming || incoming.length === 0) return 0;
+    const existing = messagesMap.value[conversationId] || [];
+    const idSet = new Set(existing.map((m) => m.id));
+    const toAdd: StoredMessage[] = [];
+
+    for (const msg of incoming) {
+      if (!idSet.has(msg.id)) {
+        idSet.add(msg.id);
+        existing.push(msg);
+        toAdd.push(msg);
+      }
+    }
+
+    if (toAdd.length > 0) {
+      existing.sort((a, b) => a.timestamp - b.timestamp);
+      messagesMap.value = {
+        ...messagesMap.value,
+        [conversationId]: [...existing],
+      };
+
+      try {
+        await getStorage().saveMessages(toAdd);
+      } catch (err) {
+        console.warn("[ChatStore] Failed persisting history batch:", err);
+      }
+
+      const conv = conversations.value.find((c) => c.id === conversationId);
+      const latest = existing[existing.length - 1];
+      if (conv && latest) {
+        if (
+          !conv.lastMessageTimestamp ||
+          latest.timestamp > conv.lastMessageTimestamp
+        ) {
+          conv.lastMessageTimestamp = latest.timestamp;
+          conv.lastMessagePreview = latest.content;
+        }
+      }
+    }
+    return toAdd.length;
+  }
+
   return {
     conversations,
     activeConversationId,
@@ -455,6 +500,7 @@ export const useChatStore = defineStore("chat", () => {
     loadMessagesForConversation,
     initConversations,
     appendMessage,
+    mergeHistoryBatch,
     updateMessageDelivery,
     updatePeerDisplayName,
     saveConversation,

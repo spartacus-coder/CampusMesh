@@ -162,6 +162,34 @@ describe("@campusmesh/storage persistence suite", () => {
         );
         const updated = await storage.getMessages("conv-1");
         expect(updated[0]?.deliveryState).toBe(DeliveryState.DELIVERED);
+
+        // Test bulk batch upsert for multi-device sync
+        const bulkBatch = [
+          {
+            id: "msg-3",
+            conversationId: "conv-1",
+            senderFingerprint: "me",
+            content: "Batch 1",
+            contentType: MessageType.TEXT,
+            timestamp: 300,
+            deliveryState: DeliveryState.DELIVERED,
+            isOutgoing: true,
+          },
+          {
+            id: "msg-4",
+            conversationId: "conv-1",
+            senderFingerprint: "me",
+            content: "Batch 2",
+            contentType: MessageType.TEXT,
+            timestamp: 400,
+            deliveryState: DeliveryState.DELIVERED,
+            isOutgoing: true,
+          },
+        ];
+        const savedCount = await storage.saveMessages(bulkBatch);
+        expect(savedCount).toBe(2);
+        const allFour = await storage.getMessages("conv-1");
+        expect(allFour).toHaveLength(4);
       });
 
       it("should queue, retrieve, and delete outbox messages", async () => {

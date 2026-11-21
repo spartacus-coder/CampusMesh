@@ -19,10 +19,12 @@ gitGraph
 
 ### Branch Types
 
-- **`main`:** Production-ready, deployable code. Direct commits are strictly prohibited.
-- **`feat/<feature-slug>`:** Functional feature branches (e.g. `feat/webrtc-transport`).
+- **`main`:** Production-ready, deployable code. Directly tagged with release versions (`vX.Y.Z`). Direct commits are strictly prohibited.
+- **`develop`:** Primary integration branch. All active feature and fix PRs merge here after passing CI checks.
+- **`feat/<feature-slug>`:** Functional feature branches branched from `develop`.
 - **`fix/<bug-slug>`:** Bug fix branches with regression tests.
 - **`security/<patch-slug>`:** Security and cryptographic fixes.
+- **`release/<version-slug>`:** Release stabilization and smoke verification before merging to `main`.
 - **`docs/<doc-slug>`:** Documentation and ADR updates.
 - **`test/<test-slug>`:** Test harness and benchmark additions.
 - **`chore/<task-slug>`:** Toolchain, dependencies, and configuration.

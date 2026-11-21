@@ -23,6 +23,7 @@ import {
   Plus,
   Search,
   UserPlus,
+  RefreshCw,
 } from "lucide-vue-next";
 import {
   Avatar,
@@ -89,8 +90,25 @@ function handleAddPeerToContacts() {
 const inputText = ref("");
 const isDetailsOpen = ref(false);
 const showManualSignalModal = ref(false);
+const isSyncingHistory = ref(false);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const mobileSearchQuery = ref("");
+
+async function handleSyncHistory() {
+  if (!activeConversation.value?.peerFingerprint) return;
+  isSyncingHistory.value = true;
+  try {
+    await networkStore.requestHistorySync(
+      activeConversation.value.peerFingerprint,
+      activeConversation.value.id,
+    );
+    setTimeout(() => {
+      isSyncingHistory.value = false;
+    }, 1500);
+  } catch {
+    isSyncingHistory.value = false;
+  }
+}
 
 const activeConversation = computed(() => {
   return chatStore.conversations.find(
@@ -490,6 +508,21 @@ async function handleStartVideoCall() {
             @click="showManualSignalModal = true"
           >
             <Radio class="h-4 w-4" />
+          </Button>
+
+          <!-- Sync History with Peer / Other Linked Device -->
+          <Button
+            v-if="
+              !activeConversation.isGroup && activeConversation.peerFingerprint
+            "
+            variant="ghost"
+            size="iconSm"
+            title="Sync Missing History with Peer / Other Device"
+            class="text-textSecondary hover:text-primary"
+            :class="{ 'animate-spin': isSyncingHistory }"
+            @click="handleSyncHistory"
+          >
+            <RefreshCw class="h-4 w-4" />
           </Button>
 
           <Button

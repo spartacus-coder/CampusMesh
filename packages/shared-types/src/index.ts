@@ -219,3 +219,28 @@ export interface AcousticPacket {
   payload: string;
   checksum: number;
 }
+
+/**
+ * Multi-Device and Peer History Reconciliation Wire Interfaces.
+ */
+export interface HistorySyncRequest {
+  type: "history_sync_request";
+  conversationId: string;
+  sinceTimestamp: number;
+}
+
+export interface HistorySyncBatch {
+  type: "history_sync_batch";
+  conversationId: string;
+  messages: Array<{
+    id: string;
+    conversationId: string;
+    senderFingerprint: string;
+    recipientFingerprint?: string | undefined;
+    content: string;
+    contentType: MessageType;
+    timestamp: number;
+    deliveryState: DeliveryState;
+    isOutgoing: boolean;
+  }>;
+}

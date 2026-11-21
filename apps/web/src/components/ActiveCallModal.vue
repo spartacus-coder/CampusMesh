@@ -21,6 +21,44 @@ const localVideoRef = ref<HTMLVideoElement | null>(null);
 const remoteAudioRef = ref<HTMLAudioElement | null>(null);
 const audioPlaybackBlocked = ref(false);
 
+let audioContext: AudioContext | null = null;
+let remoteAudioSource: MediaStreamAudioSourceNode | null = null;
+
+function setupWebAudioFallback(stream: MediaStream) {
+  if (
+    typeof window === "undefined" ||
+    (!window.AudioContext &&
+      !(window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext)
+  )
+    return;
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    if (!audioContext || audioContext.state === "closed") {
+      audioContext = new AudioCtx();
+    }
+    if (audioContext.state === "suspended") {
+      void audioContext.resume();
+    }
+    if (remoteAudioSource) {
+      try {
+        remoteAudioSource.disconnect();
+      } catch {
+        // Ignore
+      }
+    }
+    if (stream.getAudioTracks().length > 0) {
+      remoteAudioSource = audioContext.createMediaStreamSource(stream);
+      remoteAudioSource.connect(audioContext.destination);
+    }
+  } catch (err) {
+    console.warn("[ActiveCallModal] Web Audio routing note:", err);
+  }
+}
+
 const hasRemoteVideo = computed(() => {
   const stream = callStore.remoteStream;
   if (!stream) return false;
@@ -41,15 +79,19 @@ const statusLabel = computed(() => {
 });
 
 function enableAudioPlayback() {
-  if (!remoteAudioRef.value) return;
-  remoteAudioRef.value
-    .play()
-    .then(() => {
-      audioPlaybackBlocked.value = false;
-    })
-    .catch(() => {
-      audioPlaybackBlocked.value = true;
-    });
+  if (remoteAudioRef.value) {
+    remoteAudioRef.value
+      .play()
+      .then(() => {
+        audioPlaybackBlocked.value = false;
+      })
+      .catch(() => {
+        audioPlaybackBlocked.value = true;
+      });
+  }
+  if (callStore.remoteStream) {
+    setupWebAudioFallback(callStore.remoteStream);
+  }
 }
 
 watch(
@@ -74,6 +116,7 @@ watch(
             console.warn("[ActiveCallModal] Audio autoplay blocked:", err);
             audioPlaybackBlocked.value = true;
           });
+        setupWebAudioFallback(stream);
       } else {
         audioPlaybackBlocked.value = false;
       }
@@ -99,6 +142,18 @@ onUnmounted(() => {
   if (remoteVideoRef.value) remoteVideoRef.value.srcObject = null;
   if (localVideoRef.value) localVideoRef.value.srcObject = null;
   if (remoteAudioRef.value) remoteAudioRef.value.srcObject = null;
+  if (remoteAudioSource) {
+    try {
+      remoteAudioSource.disconnect();
+    } catch {
+      // Ignore
+    }
+    remoteAudioSource = null;
+  }
+  if (audioContext && audioContext.state !== "closed") {
+    audioContext.close().catch(() => {});
+    audioContext = null;
+  }
 });
 </script>
 
