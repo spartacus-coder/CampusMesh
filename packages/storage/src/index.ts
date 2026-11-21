@@ -7,6 +7,7 @@ import type {
   IdentityProfile,
   DeliveryState,
   MeshGroup,
+  DtnEnvelope,
 } from "@campusmesh/shared-types";
 import type { IStoragePort } from "./dexie-adapter";
 import type { StoredKeystoreRecord, StoredMessage, QueuedMessage } from "./db";
@@ -19,6 +20,7 @@ export class InMemoryStorageAdapter implements IStoragePort {
   private conversations: Map<string, Conversation> = new Map();
   private messages: Map<string, StoredMessage> = new Map();
   private outbox: Map<string, QueuedMessage> = new Map();
+  private dtnEnvelopes: Map<string, DtnEnvelope> = new Map();
 
   async saveIdentity(identity: IdentityProfile): Promise<void> {
     this.identity = identity;
@@ -136,6 +138,41 @@ export class InMemoryStorageAdapter implements IStoragePort {
     this.outbox.delete(id);
   }
 
+  async saveDtnEnvelope(envelope: DtnEnvelope): Promise<void> {
+    this.dtnEnvelopes.set(envelope.id, envelope);
+  }
+
+  async getDtnEnvelope(id: string): Promise<DtnEnvelope | null> {
+    return this.dtnEnvelopes.get(id) ?? null;
+  }
+
+  async getDtnEnvelopesForPeer(
+    recipientFingerprint: string,
+  ): Promise<DtnEnvelope[]> {
+    return Array.from(this.dtnEnvelopes.values()).filter(
+      (e) => e.recipientFingerprint === recipientFingerprint,
+    );
+  }
+
+  async getAllDtnEnvelopes(): Promise<DtnEnvelope[]> {
+    return Array.from(this.dtnEnvelopes.values());
+  }
+
+  async removeDtnEnvelope(id: string): Promise<void> {
+    this.dtnEnvelopes.delete(id);
+  }
+
+  async purgeExpiredDtnEnvelopes(now = Date.now()): Promise<number> {
+    let count = 0;
+    for (const [id, env] of this.dtnEnvelopes.entries()) {
+      if (env.expiresAt < now) {
+        this.dtnEnvelopes.delete(id);
+        count++;
+      }
+    }
+    return count;
+  }
+
   async clearAll(): Promise<void> {
     this.identity = null;
     this.keystores.clear();
@@ -144,5 +181,6 @@ export class InMemoryStorageAdapter implements IStoragePort {
     this.conversations.clear();
     this.messages.clear();
     this.outbox.clear();
+    this.dtnEnvelopes.clear();
   }
 }

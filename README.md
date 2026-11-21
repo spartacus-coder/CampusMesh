@@ -57,6 +57,8 @@ Browse all versioned artifacts on [**GitHub Releases**](https://github.com/spart
 | **Double Ratchet E2EE Direct Chat & 50 MB File Transfer**                            | Yes                                         | Yes                                   | Yes                                                 |
 | **1-to-1 E2EE WebRTC Voice & Video Calls**                                           | Yes                                         | Yes                                   | Yes                                                 |
 | **Background Call Notifications & Synthesized Ringtone**                             | Yes                                         | Yes (Native Notification + Vibration) | Yes (Tab Title Flash + Web Audio + OS Notification) |
+| **Near-Ultrasound Acoustic Signaling (18.2–19.9 kHz Data-over-Sound)**               | **Yes (Web Audio M-FSK)**                   | **Yes (Web Audio M-FSK)**             | **Yes (Web Audio M-FSK)**                           |
+| **Epidemic Store-and-Forward DTN (Data Mules & 24h Envelopes)**                      | **Yes (SQLite & Hop Control)**              | **Yes (Dexie & Hop Control)**         | **Yes (IndexedDB & Hop Control)**                   |
 | **Cloudflare Durable Object Signaling + 24h Offline Mailbox**                        | Yes                                         | Yes                                   | Yes                                                 |
 | **Manual Air-Gapped Offer/Answer P2P Pairing**                                       | Yes                                         | Yes                                   | Yes                                                 |
 | **Local UDP Multicast Discovery (`239.255.255.250:7777`) & Direct LAN TCP (`7778`)** | Yes                                         | Yes                                   | No (Browser sandbox restriction)                    |
@@ -99,11 +101,12 @@ You can add peers before messaging them, or save them straight from an incoming 
 
 1. **Share your own identity:**
    - Open **Contacts** (`/contacts`) → click **My QR** (or **Settings** → **Show QR Card**).
-   - Either let your peer scan the **Identity QR Card**, click **Copy Invite Link** (copies a `campusmesh://identity?v=1&name=...&fp=...&edPk=...&xPk=...` URI), or click **Copy Fingerprint**.
+   - Either let your peer scan the **Identity QR Card**, click **Copy Invite Link** (copies a `campusmesh://identity?v=1&name=...&fp=...&edPk=...&xPk=...` URI), click **Copy Fingerprint**, or click **Transmit Sound Beacon** to emit an inaudible near-ultrasound chirp (18.2 – 19.9 kHz) across the room.
 2. **Add a peer (`Contacts` → `Add Contact`):**
-   - **Scan Camera tab:** Uses your device camera (`html5-qrcode`) to scan a peer's QR card instantly.
-   - **Paste Invite / QR tab:** Paste a `campusmesh://identity?...` invite link or raw QR payload shared over another channel; CampusMesh previews the peer's Display Name, Fingerprint, and public keys before saving.
-   - **Manual Entry tab:** Enter the peer's Display Name and Safety Fingerprint directly if exchanging fingerprints out-of-band.
+   - **Camera tab:** Uses your device camera (`html5-qrcode`) to scan a peer's QR card instantly.
+   - **Sound tab (Near-Ultrasound Acoustic Pairing):** Uses your device microphone to listen for near-ultrasound sound beacons (18.2 – 19.9 kHz). Works with zero camera and zero network permissions, decoding the peer's Safety Fingerprint and cryptographic public keys directly through sound waves.
+   - **Paste Invite tab:** Paste a `campusmesh://identity?...` invite link or raw QR payload shared over another channel; CampusMesh previews the peer's Display Name, Fingerprint, and public keys before saving.
+   - **Manual tab:** Enter the peer's Display Name and Safety Fingerprint directly if exchanging fingerprints out-of-band.
 3. **One-click save from an incoming chat:**
    - If someone messages you using your invite link or over LAN before you've added them, CampusMesh displays their Display Name (falling back to a short peer label only if no alias was sent) and shows an **Add Contact** button in the top chat header. Saving a custom alias updates the conversation title automatically.
 4. **Organizing contacts:**
@@ -207,7 +210,14 @@ CampusMesh keeps working even if your campus Wi-Fi loses internet access or Clou
 2. **Android Wi-Fi Direct (`Wi-Fi P2P`) & Bluetooth Low Energy (`BLE Mesh`):**
    - On Android, grant nearby Wi-Fi / Bluetooth permissions when prompted. Nearby Android peers appear in **`Nearby on Campus`** tagged `Wi-Fi P2P` or `BLE Mesh` alongside `0ms LAN`.
    - A native Android foreground service (`MeshForegroundService`) helps preserve background mesh connectivity.
-3. **Air-Gapped Manual P2P Connect (`Manual P2P Connect (Offline / Air-Gapped)`):**
+3. **Epidemic Store-and-Forward Delay-Tolerant Networking (DTN / Data Mules):**
+   - When a peer is offline or far away across campus, outgoing messages are automatically packaged into encrypted `DtnEnvelope` bundles with strict 24-hour TTL and hop-count limits.
+   - Any roaming student node passing by automatically receives and carries these bundles as an opportunistic "Data Mule" over LAN, BLE, or WebRTC.
+   - When the mule encounters the recipient, the envelope is delivered and unpacked, and an ephemeral delivery ACK gossips back through the mesh to purge the envelope across all mules.
+4. **Near-Ultrasound Acoustic Signaling (Data-over-Sound):**
+   - Uses Web Audio API M-FSK modulation (18.2 kHz preamble + 16 channels from 18.4 kHz to 19.9 kHz with CRC-8 error correction).
+   - Functions 100% inaudibly across a classroom or dorm room (1–5 meters) without requiring internet, cellular signal, or camera access.
+5. **Air-Gapped Manual P2P Connect (`Manual P2P Connect (Offline / Air-Gapped)`):**
    - Works even across two browsers with zero internet or LAN multicast:
    - Click the **Radio icon** in any chat's top header.
    - Peer A chooses offer generation, enters Peer B's fingerprint, and shares the generated **Offer** string (via clipboard, QR, USB, or local file).

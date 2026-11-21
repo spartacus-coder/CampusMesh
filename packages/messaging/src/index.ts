@@ -1,7 +1,6 @@
 export * from "./engine";
 export * from "./call-session";
-
-export * from "./engine";
+export * from "./dtn-router";
 
 import { DeliveryState, type WireEnvelope } from "@campusmesh/shared-types";
 

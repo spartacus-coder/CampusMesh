@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import QRCode from "qrcode";
 import { useIdentityStore } from "../stores/identity";
 import { Button } from "@campusmesh/ui";
-import { QrCode, Copy, Check, X, ShieldCheck, Share2 } from "lucide-vue-next";
+import {
+  QrCode,
+  Copy,
+  Check,
+  X,
+  ShieldCheck,
+  Share2,
+  Volume2,
+  VolumeX,
+} from "lucide-vue-next";
+import { AcousticModem } from "@campusmesh/transport";
 
 const emit = defineEmits<{
   (e: "close"): void;
@@ -14,6 +24,10 @@ const qrDataUrl = ref<string>("");
 const inviteUri = ref<string>("");
 const isCopied = ref(false);
 const isLinkCopied = ref(false);
+const acousticModem = new AcousticModem();
+const isTransmittingSound = ref(false);
+const soundProgress = ref(0);
+const soundDone = ref(false);
 
 onMounted(async () => {
   if (identityStore.identity) {
@@ -37,6 +51,36 @@ onMounted(async () => {
     }
   }
 });
+
+onUnmounted(() => {
+  acousticModem.stopTransmitting();
+});
+
+async function transmitAcousticBeacon() {
+  if (isTransmittingSound.value) {
+    acousticModem.stopTransmitting();
+    isTransmittingSound.value = false;
+    return;
+  }
+  if (!inviteUri.value) return;
+  try {
+    isTransmittingSound.value = true;
+    soundProgress.value = 0;
+    soundDone.value = false;
+    await acousticModem.transmit(inviteUri.value, (pct) => {
+      soundProgress.value = pct;
+    });
+    soundDone.value = true;
+    setTimeout(() => {
+      soundDone.value = false;
+      soundProgress.value = 0;
+    }, 3000);
+  } catch (err) {
+    console.warn("Acoustic transmission error:", err);
+  } finally {
+    isTransmittingSound.value = false;
+  }
+}
 
 function copyFingerprint() {
   if (identityStore.identity?.fingerprint) {
@@ -134,6 +178,44 @@ function copyInviteLink() {
             <Copy v-else class="h-3.5 w-3.5 text-primary" />
             <span>{{ isCopied ? "FP Copied!" : "Copy Fingerprint" }}</span>
           </Button>
+        </div>
+
+        <!-- Ultrasound Acoustic Beacon Button -->
+        <div class="w-full space-y-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            class="w-full text-xs gap-1.5 h-9"
+            :class="
+              isTransmittingSound
+                ? 'border-primary text-primary bg-primary/10 animate-pulse'
+                : ''
+            "
+            @click="transmitAcousticBeacon"
+          >
+            <VolumeX
+              v-if="isTransmittingSound"
+              class="h-3.5 w-3.5 text-danger"
+            />
+            <Check v-else-if="soundDone" class="h-3.5 w-3.5 text-success" />
+            <Volume2 v-else class="h-3.5 w-3.5 text-primary" />
+            <span>{{
+              isTransmittingSound
+                ? `Emitting Sound (${soundProgress}%)... Stop`
+                : soundDone
+                  ? "Ultrasound Beacon Sent!"
+                  : "Transmit Sound Beacon (18.2 – 19.9 kHz)"
+            }}</span>
+          </Button>
+          <div
+            v-if="isTransmittingSound"
+            class="h-1.5 w-full bg-border rounded-full overflow-hidden"
+          >
+            <div
+              class="h-full bg-primary transition-all duration-100"
+              :style="{ width: `${soundProgress}%` }"
+            ></div>
+          </div>
         </div>
 
         <!-- Fingerprint display box -->

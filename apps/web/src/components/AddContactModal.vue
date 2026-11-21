@@ -10,14 +10,20 @@ import {
   RefreshCw,
   CameraOff,
   ShieldCheck,
+  Volume2,
 } from "lucide-vue-next";
 import { Button, Input } from "@campusmesh/ui";
 import { useContactsStore } from "../stores/contacts";
 import { Html5Qrcode } from "html5-qrcode";
+import { AcousticModem } from "@campusmesh/transport";
 
 const contactsStore = useContactsStore();
 
-const activeTab = ref<"camera" | "qr" | "manual">("camera");
+const activeTab = ref<"camera" | "acoustic" | "qr" | "manual">("camera");
+const acousticModem = new AcousticModem();
+const isAcousticListening = ref(false);
+const acousticSignalDb = ref(-100);
+const acousticError = ref<string | null>(null);
 const displayName = ref("");
 const fingerprint = ref("");
 const ed25519PublicKey = ref("");
@@ -54,12 +60,17 @@ watch(rawQrInput, (val) => {
   }
 });
 
-// Watch tab switching to start / stop camera
+// Watch tab switching to start / stop camera & acoustic listening
 watch(activeTab, async (newTab) => {
   if (newTab === "camera") {
+    stopAcousticListening();
     await startCamera();
+  } else if (newTab === "acoustic") {
+    await stopCamera();
+    await startAcousticListening();
   } else {
     await stopCamera();
+    stopAcousticListening();
   }
 });
 
@@ -76,15 +87,50 @@ watch(
         activeTab.value = "manual";
       } else if (activeTab.value === "camera") {
         await startCamera();
+      } else if (activeTab.value === "acoustic") {
+        await startAcousticListening();
       }
     } else {
       await stopCamera();
+      stopAcousticListening();
       resetForm();
       contactsStore.prefilledFingerprint = "";
       contactsStore.prefilledName = "";
     }
   },
 );
+
+async function startAcousticListening() {
+  stopAcousticListening();
+  acousticError.value = null;
+  scanSuccess.value = false;
+  try {
+    isAcousticListening.value = true;
+    await acousticModem.startListening(
+      (result) => {
+        if (result.crcValid && result.text) {
+          handleQrScanned(result.text);
+          stopAcousticListening();
+        }
+      },
+      (db) => {
+        acousticSignalDb.value = db;
+      },
+    );
+  } catch (err: unknown) {
+    isAcousticListening.value = false;
+    acousticError.value =
+      err instanceof Error
+        ? err.message
+        : "Failed to access microphone for acoustic listening.";
+  }
+}
+
+function stopAcousticListening() {
+  acousticModem.stopListening();
+  isAcousticListening.value = false;
+  acousticSignalDb.value = -100;
+}
 
 async function startCamera() {
   await stopCamera();
@@ -235,6 +281,7 @@ async function handleSave() {
 
 onUnmounted(() => {
   stopCamera();
+  stopAcousticListening();
 });
 </script>
 
@@ -272,7 +319,7 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- 3-Way Tab Switcher -->
+      <!-- 4-Way Tab Switcher -->
       <div class="flex rounded-lg bg-background p-1 border border-border gap-1">
         <button
           type="button"
@@ -285,7 +332,20 @@ onUnmounted(() => {
           @click="activeTab = 'camera'"
         >
           <Camera class="h-3.5 w-3.5" />
-          Scan Camera
+          Camera
+        </button>
+        <button
+          type="button"
+          class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5"
+          :class="
+            activeTab === 'acoustic'
+              ? 'bg-surface text-textPrimary shadow-xs'
+              : 'text-textMuted hover:text-textPrimary'
+          "
+          @click="activeTab = 'acoustic'"
+        >
+          <Volume2 class="h-3.5 w-3.5" />
+          Sound
         </button>
         <button
           type="button"
@@ -298,7 +358,7 @@ onUnmounted(() => {
           @click="activeTab = 'qr'"
         >
           <QrCode class="h-3.5 w-3.5" />
-          Paste Invite / QR
+          Paste Invite
         </button>
         <button
           type="button"
@@ -311,7 +371,7 @@ onUnmounted(() => {
           @click="activeTab = 'manual'"
         >
           <UserPlus class="h-3.5 w-3.5" />
-          Manual Entry
+          Manual
         </button>
       </div>
 
@@ -397,6 +457,123 @@ onUnmounted(() => {
           Point your device camera at the peer's Identity QR Card to scan
           automatically.
         </p>
+      </div>
+
+      <!-- Tab: Near-Ultrasound Acoustic Sound Receiver -->
+      <div v-else-if="activeTab === 'acoustic'" class="flex flex-col gap-3">
+        <div
+          v-show="!scanSuccess"
+          class="p-5 rounded-xl border border-border bg-surface-subtle flex flex-col items-center text-center gap-3"
+        >
+          <div
+            class="h-12 w-12 rounded-full flex items-center justify-center transition-all"
+            :class="
+              isAcousticListening
+                ? 'bg-primary/20 text-primary animate-pulse'
+                : 'bg-surface text-textMuted'
+            "
+          >
+            <Volume2 class="h-6 w-6" />
+          </div>
+
+          <div>
+            <h3 class="text-sm font-bold text-textPrimary">
+              {{
+                isAcousticListening
+                  ? "Listening for Ultrasound Beacon..."
+                  : "Acoustic Pairing Inactive"
+              }}
+            </h3>
+            <p class="text-xs text-textSecondary max-w-xs mt-1">
+              Near-ultrasound acoustic signaling (18.2 – 19.9 kHz). Place your
+              friend's device within 1–5 meters with their Sound Beacon
+              emitting.
+            </p>
+          </div>
+
+          <!-- Live Signal Bar -->
+          <div class="w-full max-w-xs space-y-1">
+            <div class="flex justify-between text-[11px] text-textMuted">
+              <span>Ultrasound Signal Level</span>
+              <span>{{
+                isAcousticListening
+                  ? `${Math.round(acousticSignalDb)} dB`
+                  : "Off"
+              }}</span>
+            </div>
+            <div class="h-2 w-full bg-border rounded-full overflow-hidden">
+              <div
+                class="h-full bg-primary transition-all duration-100"
+                :style="{
+                  width: `${Math.min(100, Math.max(0, (acousticSignalDb + 100) * 1.5))}%`,
+                }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 mt-1">
+            <Button
+              v-if="!isAcousticListening"
+              size="sm"
+              variant="default"
+              @click="startAcousticListening"
+            >
+              <Volume2 class="h-3.5 w-3.5 mr-1.5" />
+              Start Listening
+            </Button>
+            <Button
+              v-else
+              size="sm"
+              variant="outline"
+              @click="stopAcousticListening"
+            >
+              Stop Listening
+            </Button>
+          </div>
+
+          <p v-if="acousticError" class="text-xs text-danger mt-1">
+            {{ acousticError }}
+          </p>
+        </div>
+
+        <!-- Scanned Success Preview -->
+        <div
+          v-if="scanSuccess && parsedPreview"
+          class="p-4 rounded-xl border border-success/40 bg-success/10 flex flex-col gap-2.5 animate-in fade-in"
+        >
+          <div class="flex items-center justify-between">
+            <span
+              class="text-xs font-bold text-success flex items-center gap-1.5"
+            >
+              <CheckCircle class="h-4 w-4" />
+              Acoustic Beacon Decoded!
+            </span>
+            <button
+              class="text-xs text-textSecondary hover:text-textPrimary flex items-center gap-1"
+              @click="startAcousticListening"
+            >
+              <RefreshCw class="h-3 w-3" />
+              Listen Again
+            </button>
+          </div>
+          <div>
+            <label
+              class="text-[11px] font-medium text-textSecondary block mb-1"
+            >
+              Contact Alias / Display Name
+            </label>
+            <Input v-model="displayName" class="h-9 text-xs" />
+          </div>
+          <div
+            class="text-[11px] font-mono text-textMuted break-all bg-background/50 p-2 rounded-lg"
+          >
+            {{ parsedPreview.fingerprint }}
+          </div>
+          <div class="flex items-center gap-2 text-[11px] text-textSecondary">
+            <ShieldCheck class="h-3.5 w-3.5 text-primary" />
+            <span>Cryptographic public keys verified and loaded</span>
+          </div>
+        </div>
       </div>
 
       <!-- Tab 2: Paste QR / Invite Link -->

@@ -169,3 +169,53 @@ export interface WireEnvelope {
   authTag: string;
   signature: string;
 }
+
+/**
+ * Epidemic Delay-Tolerant Networking (DTN) Envelope for Store-and-Forward data mule routing.
+ */
+export interface DtnEnvelope {
+  id: string;
+  senderFingerprint: string;
+  recipientFingerprint: string;
+  encryptedPayload: string;
+  timestamp: number;
+  expiresAt: number;
+  hopCount: number;
+  maxHops?: number | undefined;
+  signature?: string | undefined;
+}
+
+/**
+ * DTN inventory announcement for epidemic gossip exchange.
+ */
+export interface DtnInventory {
+  nodeFingerprint: string;
+  envelopeIds: string[];
+}
+
+/**
+ * DTN envelope batch request payload.
+ */
+export interface DtnRequest {
+  nodeFingerprint: string;
+  requestedIds: string[];
+}
+
+/**
+ * Delivery acknowledgment gossip packet to purge delivered envelopes across the mesh.
+ */
+export interface DtnAck {
+  envelopeId: string;
+  recipientFingerprint: string;
+  deliveredAt: number;
+  signature?: string | undefined;
+}
+
+/**
+ * Near-Ultrasound Acoustic Data-over-Sound packet format.
+ */
+export interface AcousticPacket {
+  type: "identity" | "dtn_ping" | "contact_beacon";
+  payload: string;
+  checksum: number;
+}

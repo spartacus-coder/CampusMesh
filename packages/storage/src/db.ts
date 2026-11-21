@@ -7,6 +7,7 @@ import type {
   MessageType,
   WireEnvelope,
   MeshGroup,
+  DtnEnvelope,
 } from "@campusmesh/shared-types";
 import type { EncryptedKeystoreBlob } from "@campusmesh/crypto";
 
@@ -45,6 +46,7 @@ export class CampusMeshDatabase extends Dexie {
   conversations!: EntityTable<Conversation, "id">;
   messages!: EntityTable<StoredMessage, "id">;
   outbox!: EntityTable<QueuedMessage, "id">;
+  dtnEnvelopes!: EntityTable<DtnEnvelope, "id">;
 
   constructor(dbName = "CampusMeshDB") {
     super(dbName);
@@ -58,6 +60,9 @@ export class CampusMeshDatabase extends Dexie {
       messages:
         "id, conversationId, senderFingerprint, timestamp, deliveryState, [conversationId+timestamp]",
       outbox: "id, recipientFingerprint, createdAt, nextRetryAt",
+    });
+    this.version(2).stores({
+      dtnEnvelopes: "id, recipientFingerprint, expiresAt, timestamp",
     });
   }
 }

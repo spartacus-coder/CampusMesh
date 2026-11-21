@@ -5,13 +5,22 @@ import {
   PeerConnectionState,
   DeliveryState,
   MessageType,
+  type DtnEnvelope,
+  type DtnInventory,
+  type DtnRequest,
+  type DtnAck,
 } from "@campusmesh/shared-types";
-import type { StoredMessage } from "@campusmesh/storage";
+import {
+  DexieStorageAdapter,
+  InMemoryStorageAdapter,
+  type IStoragePort,
+  type StoredMessage,
+} from "@campusmesh/storage";
 import { useChatStore } from "./chat";
 import { useCallStore } from "./call";
 import { useContactsStore } from "./contacts";
 import { useIdentityStore } from "./identity";
-import type { CallSignal } from "@campusmesh/messaging";
+import { DtnRouter, type CallSignal } from "@campusmesh/messaging";
 import {
   nativeService,
   type LanPeer,
@@ -237,9 +246,56 @@ export const useNetworkStore = defineStore("network", () => {
     }
   }
 
+  let storageInstance: IStoragePort | null = null;
+  function getStorage(): IStoragePort {
+    if (!storageInstance) {
+      storageInstance =
+        typeof indexedDB !== "undefined"
+          ? new DexieStorageAdapter("CampusMeshWebDB")
+          : new InMemoryStorageAdapter();
+    }
+    return storageInstance;
+  }
+
+  let dtnRouter: DtnRouter | null = null;
+  function getDtnRouter(localFingerprint = ""): DtnRouter {
+    if (!dtnRouter) {
+      dtnRouter = new DtnRouter({
+        localFingerprint,
+        storage: getStorage(),
+        maxMuleEnvelopes: 100,
+        defaultTtlMs: 24 * 60 * 60 * 1000,
+        maxHops: 5,
+      });
+    } else if (localFingerprint) {
+      dtnRouter.setLocalFingerprint(localFingerprint);
+    }
+    return dtnRouter;
+  }
+
+  async function syncDtnWithPeer(peerFp: string) {
+    try {
+      const router = getDtnRouter();
+      const inventory = await router.getInventory();
+      sendControlToPeer(peerFp, {
+        type: "dtn_inventory",
+        inventory,
+      });
+      const directEnvelopes = await router.getEnvelopesForPeer(peerFp);
+      if (directEnvelopes.length > 0) {
+        sendControlToPeer(peerFp, {
+          type: "dtn_batch",
+          envelopes: directEnvelopes,
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to sync DTN with peer:", peerFp, err);
+    }
+  }
+
   function sendControlToPeer(
     targetFp: string,
-    packet: SwarmGatewayControlPacket,
+    packet: SwarmGatewayControlPacket | Record<string, unknown>,
   ): boolean {
     if (!peerTransport) return false;
     const bytes = new TextEncoder().encode(JSON.stringify(packet));
@@ -367,6 +423,8 @@ export const useNetworkStore = defineStore("network", () => {
             swarmPublicKey: swarmPublicKey.value || undefined,
           });
         }
+        // Opportunistic DTN Store-and-Forward sync
+        void syncDtnWithPeer(peerFp);
       };
       peerTransport.onIceCandidate = (peerFp, candidate) => {
         if (
@@ -423,6 +481,58 @@ export const useNetworkStore = defineStore("network", () => {
                 peerFp,
                 packet as unknown as SwarmGatewayControlPacket,
               );
+            } else if (packet.type === "dtn_inventory" && packet.inventory) {
+              const router = getDtnRouter();
+              void router
+                .handleInventory(packet.inventory as DtnInventory)
+                .then((needed) => {
+                  if (needed.length > 0) {
+                    const req = router.createRequest(needed);
+                    sendControlToPeer(peerFp, {
+                      type: "dtn_request",
+                      request: req,
+                    });
+                  }
+                });
+            } else if (packet.type === "dtn_request" && packet.request) {
+              const router = getDtnRouter();
+              void router
+                .handleRequest(packet.request as DtnRequest)
+                .then((envelopes) => {
+                  if (envelopes.length > 0) {
+                    sendControlToPeer(peerFp, {
+                      type: "dtn_batch",
+                      envelopes,
+                    });
+                  }
+                });
+            } else if (
+              packet.type === "dtn_batch" &&
+              Array.isArray(packet.envelopes)
+            ) {
+              const router = getDtnRouter();
+              void router
+                .ingestEnvelopes(packet.envelopes as DtnEnvelope[])
+                .then((res) => {
+                  for (const env of res.delivered) {
+                    try {
+                      const msg = JSON.parse(env.encryptedPayload) as Record<
+                        string,
+                        unknown
+                      >;
+                      ingestIncomingChatPayload(msg, env.senderFingerprint, {
+                        sendAck: false,
+                      });
+                      const ack = router.createAck(env.id);
+                      sendControlToPeer(peerFp, { type: "dtn_ack", ack });
+                    } catch {
+                      // Ignore malformed payload
+                    }
+                  }
+                });
+            } else if (packet.type === "dtn_ack" && packet.ack) {
+              const router = getDtnRouter();
+              void router.handleAck(packet.ack as DtnAck);
             }
           } catch {
             // Ignore malformed control packet
@@ -767,6 +877,25 @@ export const useNetworkStore = defineStore("network", () => {
     // Also transmit via Air-Gapped Wi-Fi Direct if active
     if (nativeService.isAndroid && isAirGappedMeshActive.value) {
       nativeService.sendWifiDirectMessage(jsonStr).catch(() => {});
+      const blePeer = Object.values(blePeers.value).find(
+        (p) =>
+          p.deviceAddress === recipientFingerprint ||
+          (p.fingerprintHash &&
+            recipientFingerprint.startsWith(p.fingerprintHash)),
+      );
+      if (blePeer) {
+        nativeService
+          .sendBleMessage(blePeer.deviceAddress, jsonStr)
+          .catch(() => {});
+      }
+    }
+
+    // Epidemic Store-and-Forward DTN Envelope creation
+    try {
+      const router = getDtnRouter(localFingerprint);
+      void router.createEnvelope(recipientFingerprint, jsonStr).catch(() => {});
+    } catch {
+      // Ignore
     }
 
     const storedMsg: StoredMessage = {
@@ -868,6 +997,22 @@ export const useNetworkStore = defineStore("network", () => {
       ) {
         signalingClient.sendChatMessage(memberFp, payload);
       }
+      if (nativeService.isAndroid && isAirGappedMeshActive.value) {
+        const bp = Object.values(blePeers.value).find(
+          (p) =>
+            p.deviceAddress === memberFp ||
+            (p.fingerprintHash && memberFp.startsWith(p.fingerprintHash)),
+        );
+        if (bp) {
+          void nativeService
+            .sendBleMessage(bp.deviceAddress, jsonStr)
+            .catch(() => {});
+        }
+      }
+    }
+
+    if (nativeService.isAndroid && isAirGappedMeshActive.value) {
+      nativeService.sendWifiDirectMessage(jsonStr).catch(() => {});
     }
 
     const storedMsg: StoredMessage = {
@@ -1304,5 +1449,7 @@ export const useNetworkStore = defineStore("network", () => {
     sendBleDirect,
     sendDeliveryAck,
     sendReadReceipt,
+    getDtnRouter,
+    syncDtnWithPeer,
   };
 });

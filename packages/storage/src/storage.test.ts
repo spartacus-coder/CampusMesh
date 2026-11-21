@@ -230,6 +230,62 @@ describe("@campusmesh/storage persistence suite", () => {
         await storage.deleteGroup("grp-1");
         expect(await storage.getGroup("grp-1")).toBeNull();
       });
+
+      it("should store, query, and purge DTN envelopes for epidemic store-and-forward", async () => {
+        const env1 = {
+          id: "env-1",
+          senderFingerprint: "fp-sender",
+          recipientFingerprint: "fp-batman",
+          encryptedPayload: "ciphertext-1",
+          timestamp: 1000,
+          expiresAt: 5000,
+          hopCount: 1,
+        };
+        const env2 = {
+          id: "env-2",
+          senderFingerprint: "fp-sender",
+          recipientFingerprint: "fp-batman",
+          encryptedPayload: "ciphertext-2",
+          timestamp: 2000,
+          expiresAt: 10000,
+          hopCount: 2,
+        };
+        const env3 = {
+          id: "env-3",
+          senderFingerprint: "fp-other",
+          recipientFingerprint: "fp-alice",
+          encryptedPayload: "ciphertext-3",
+          timestamp: 3000,
+          expiresAt: 4000, // already expired if now > 4000
+          hopCount: 1,
+        };
+
+        await storage.saveDtnEnvelope(env1);
+        await storage.saveDtnEnvelope(env2);
+        await storage.saveDtnEnvelope(env3);
+
+        const all = await storage.getAllDtnEnvelopes();
+        expect(all).toHaveLength(3);
+
+        const batmanEnvs = await storage.getDtnEnvelopesForPeer("fp-batman");
+        expect(batmanEnvs).toHaveLength(2);
+        expect(batmanEnvs.map((e) => e.id)).toContain("env-1");
+        expect(batmanEnvs.map((e) => e.id)).toContain("env-2");
+
+        const single = await storage.getDtnEnvelope("env-1");
+        expect(single?.encryptedPayload).toBe("ciphertext-1");
+
+        // Purge expired envelopes at t=6000 (env1 and env3 expire, env2 remains)
+        const purgedCount = await storage.purgeExpiredDtnEnvelopes(6000);
+        expect(purgedCount).toBe(2);
+
+        const remaining = await storage.getAllDtnEnvelopes();
+        expect(remaining).toHaveLength(1);
+        expect(remaining[0]?.id).toBe("env-2");
+
+        await storage.removeDtnEnvelope("env-2");
+        expect(await storage.getAllDtnEnvelopes()).toHaveLength(0);
+      });
     });
   });
 });

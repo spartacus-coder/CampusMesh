@@ -10,6 +10,7 @@ import type {
   IdentityProfile,
   DeliveryState,
   MeshGroup,
+  DtnEnvelope,
 } from "@campusmesh/shared-types";
 
 export interface IStoragePort {
@@ -38,6 +39,12 @@ export interface IStoragePort {
   queueOutboxMessage(message: QueuedMessage): Promise<void>;
   getPendingOutboxMessages(limit?: number): Promise<QueuedMessage[]>;
   removeOutboxMessage(id: string): Promise<void>;
+  saveDtnEnvelope(envelope: DtnEnvelope): Promise<void>;
+  getDtnEnvelope(id: string): Promise<DtnEnvelope | null>;
+  getDtnEnvelopesForPeer(recipientFingerprint: string): Promise<DtnEnvelope[]>;
+  getAllDtnEnvelopes(): Promise<DtnEnvelope[]>;
+  removeDtnEnvelope(id: string): Promise<void>;
+  purgeExpiredDtnEnvelopes(now?: number): Promise<number>;
   clearAll(): Promise<void>;
 }
 
@@ -167,6 +174,43 @@ export class DexieStorageAdapter implements IStoragePort {
     await this.db.outbox.delete(id);
   }
 
+  async saveDtnEnvelope(envelope: DtnEnvelope): Promise<void> {
+    await this.db.dtnEnvelopes.put(envelope);
+  }
+
+  async getDtnEnvelope(id: string): Promise<DtnEnvelope | null> {
+    const env = await this.db.dtnEnvelopes.get(id);
+    return env ?? null;
+  }
+
+  async getDtnEnvelopesForPeer(
+    recipientFingerprint: string,
+  ): Promise<DtnEnvelope[]> {
+    return this.db.dtnEnvelopes
+      .where("recipientFingerprint")
+      .equals(recipientFingerprint)
+      .toArray();
+  }
+
+  async getAllDtnEnvelopes(): Promise<DtnEnvelope[]> {
+    return this.db.dtnEnvelopes.toArray();
+  }
+
+  async removeDtnEnvelope(id: string): Promise<void> {
+    await this.db.dtnEnvelopes.delete(id);
+  }
+
+  async purgeExpiredDtnEnvelopes(now = Date.now()): Promise<number> {
+    const expired = await this.db.dtnEnvelopes
+      .where("expiresAt")
+      .below(now)
+      .toArray();
+    if (expired.length > 0) {
+      await this.db.dtnEnvelopes.bulkDelete(expired.map((e) => e.id));
+    }
+    return expired.length;
+  }
+
   async clearAll(): Promise<void> {
     await this.db.transaction(
       "rw",
@@ -178,6 +222,7 @@ export class DexieStorageAdapter implements IStoragePort {
         this.db.conversations,
         this.db.messages,
         this.db.outbox,
+        this.db.dtnEnvelopes,
       ],
       async () => {
         await Promise.all([
@@ -188,6 +233,7 @@ export class DexieStorageAdapter implements IStoragePort {
           this.db.conversations.clear(),
           this.db.messages.clear(),
           this.db.outbox.clear(),
+          this.db.dtnEnvelopes.clear(),
         ]);
       },
     );
